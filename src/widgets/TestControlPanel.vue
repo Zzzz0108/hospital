@@ -9,22 +9,29 @@ const router = useRouter()
 <template>
   <div>
     <div style="margin-bottom:8px;">已选被试：{{store.currentPatientText}}</div>
+    <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+      <span>测试名称</span>
+      <el-input v-model="store.basic.name" size="large" style="max-width:320px;" />
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-      <button @click="() => router.push({ path: '/config', query: { mode: 'update' } })">更改选定测试</button>
-      <button @click="() => router.push({ path: '/config', query: { mode: 'create' } })">新增测试</button>
-      <button @click="store.remove">删除测试</button>
-      <label>眼别
-        <select v-model="store.eye">
-          <option value="L">左</option>
-          <option value="R">右</option>
-          <option value="B">双眼</option>
-        </select>
-      </label>
-      <button @click="() => router.push('/run')">开始测试</button>
+      <el-button @click="() => router.push({ path: '/config', query: { mode: 'update' } })">更改选定测试</el-button>
+      <el-button @click="() => router.push({ path: '/config', query: { mode: 'create' } })">新增测试</el-button>
+      <el-button type="danger" @click="store.remove">删除选定测试</el-button>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+      <span>眼别选择：</span>
+      <el-radio-group v-model="store.eye">
+        <el-radio label="L">左眼</el-radio>
+        <el-radio label="R">右眼</el-radio>
+        <el-radio label="B">双眼</el-radio>
+      </el-radio-group>
+    </div>
+    <div style="display:flex;justify-content:center;margin-bottom:12px;">
+      <el-button type="primary" size="large" @click="() => router.push('/run')">开始测试</el-button>
     </div>
 
     <div style="border:1px solid #ddd;padding:8px;">
-      <h4 style="margin:0 0 8px 0;">已完成测试</h4>
+      <h4 style="margin:0 0 8px 0;text-align:center;">已完成测试</h4>
       <table border="1" cellspacing="0" cellpadding="6" style="width:100%;border-collapse:collapse;">
         <thead><tr><th>序号</th><th>时间</th><th>模式</th><th>眼别</th><th>导出</th></tr></thead>
         <tbody>

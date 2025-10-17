@@ -35,11 +35,11 @@ const handleRowClick = (row) => {
           <el-form-item label="ID号"><el-input v-model="form.id" /></el-form-item>
         </el-form>
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px;width:120px;">
-        <el-button type="primary" size="large" @click="add">新增</el-button>
-        <el-button size="large" @click="update">修改</el-button>
-        <el-button size="large" @click="search">搜索</el-button>
-        <el-button type="danger" size="large" @click="remove">删除</el-button>
+      <div class="btn-col" style="display:flex;flex-direction:column;width:120px;">
+        <el-button type="primary" class="btn-compact" @click="add">新增</el-button>
+        <el-button class="btn-compact" @click="update">修改</el-button>
+        <el-button class="btn-compact" @click="search">搜索</el-button>
+        <el-button type="danger" class="btn-compact" @click="remove">删除</el-button>
       </div>
     </div>
     
@@ -64,5 +64,11 @@ const handleRowClick = (row) => {
 </template>
 
 <style scoped>
-/* 不需要额外的样式，Element Plus 会自动处理 */
+/* 纵向按钮列需要去掉 Element Plus 默认的相邻按钮左外边距 */
+.btn-col :deep(.el-button + .el-button){
+  margin-left: 0 !important;
+}
+.btn-col{ gap:18px; }
+.btn-compact :deep(.el-button__text){ line-height: 30px; }
+.btn-compact{ height:32px; padding: 0 12px; }
 </style>

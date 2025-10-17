@@ -19,6 +19,7 @@ export const useTestsStore = defineStore('tests', {
       order: 'ordered',
       resultReversalN: 6,
       showParams: true,
+      mode: 'auto',
     },
     modules: [],
     eye: 'B',
@@ -35,7 +36,7 @@ export const useTestsStore = defineStore('tests', {
   actions: {
     saveBasic(){},
     resetBasic(){
-      this.basic = { ...this.basic, name:'', bgRgb:'128,128,128' }
+      this.basic = { ...this.basic, name:'', bgRgb:'128,128,128', mode:'auto' }
     },
     add(){},
     remove(){},
