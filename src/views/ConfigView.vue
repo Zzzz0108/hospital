@@ -20,17 +20,30 @@ if (store.modules.length === 0) {
   selectedModuleId.value = store.modules[0].id
 }
 
-watch(() => route.query.mode, (m) => {
-  // create 模式时，自动切到模块+ 新增并选中新模块
+watch(() => route.query.mode, async (m) => {
   if (m === 'create') {
+    // 新增模式：清空当前测试，创建新模块
+    store.currentTestId = null
+    store.resetBasic()
+    store.modules = []
     selectedModuleId.value = store.addModule()
     activeTab.value = `module-${selectedModuleId.value}`
+  } else if (m === 'update') {
+    // 更新模式：确保已加载默认测试方案
+    if(!store.currentTestId){
+      await store.loadDefault()
+    }
+    activeTab.value = 'basic'
   } else {
     activeTab.value = 'basic'
   }
 }, { immediate: true })
 
-function goBack(){ router.push('/') }
+async function goBack(){ 
+  // 返回前重新加载默认测试方案
+  await store.loadDefault()
+  router.push('/') 
+}
 
 </script>
 

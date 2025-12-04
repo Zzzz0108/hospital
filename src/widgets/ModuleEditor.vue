@@ -9,6 +9,16 @@ const store = useTestsStore()
 const current = computed(() => store.modules.find(m => m.id === props.selectedId) || null)
 const minReversal = computed(() => Number(store.basic?.resultReversalN || 1))
 const canSave = computed(() => !current.value || Number(current.value.reversal) >= minReversal.value)
+
+// 更新模块参数的方法
+const updateModule = (field, value) => {
+  if (current.value) {
+    const moduleIndex = store.modules.findIndex(m => m.id === props.selectedId)
+    if (moduleIndex !== -1) {
+      store.modules[moduleIndex] = { ...store.modules[moduleIndex], [field]: value }
+    }
+  }
+}
 </script>
 
 <template>
@@ -16,30 +26,30 @@ const canSave = computed(() => !current.value || Number(current.value.reversal) 
     <div v-if="current" class="v-form">
       <div class="row">
         <span class="lbl">空间频率 (c/d)</span>
-        <el-input-number v-model="current.spatial" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number :value="current.spatial" @update:value="(val) => updateModule('spatial', val)" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
       </div>
       <div class="row">
         <span class="lbl">时间频率 (Hz)</span>
-        <el-input-number v-model="current.temporal" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number :value="current.temporal" @update:value="(val) => updateModule('temporal', val)" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
       </div>
       <div class="row">
         <span class="lbl">间隔时间 (s)</span>
-        <el-input-number v-model="current.interval" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number :value="current.interval" @update:value="(val) => updateModule('interval', val)" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
       </div>
       <div class="row">
         <span class="lbl">持续时间 (s)</span>
-        <el-input-number v-model="current.duration" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number :value="current.duration" @update:value="(val) => updateModule('duration', val)" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
       </div>
       <div class="row">
         <span class="lbl">初始对比度 (%)</span>
-        <el-input-number v-model="current.initialContrast" :min="0" :max="100" :step="1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number :value="current.initialContrast" @update:value="(val) => updateModule('initialContrast', val)" :min="0" :max="100" :step="1" controls-position="right" size="large" class="ctrl" />
       </div>
       <div class="row">
         <span class="lbl">对比度切换逻辑</span>
         <div class="inline">
-          <el-input-number v-model="current.up" :min="1" :step="1" controls-position="right" size="large" style="width:120px;" />
-          <el-input-number v-model="current.down" :min="1" :step="1" controls-position="right" size="large" style="width:120px;margin-left:8px;" />
-          <el-input-number v-model="current.reversal" :min="minReversal" :step="1" controls-position="right" size="large" style="width:160px;margin-left:8px;" />
+          <el-input-number :value="current.up" @update:value="(val) => updateModule('up', val)" :min="1" :step="1" controls-position="right" size="large" style="width:120px;" />
+          <el-input-number :value="current.down" @update:value="(val) => updateModule('down', val)" :min="1" :step="1" controls-position="right" size="large" style="width:120px;margin-left:8px;" />
+          <el-input-number :value="current.reversal" @update:value="(val) => updateModule('reversal', val)" :min="minReversal" :step="1" controls-position="right" size="large" style="width:160px;margin-left:8px;" />
         </div>
       </div>
       <div class="row">
@@ -47,12 +57,12 @@ const canSave = computed(() => !current.value || Number(current.value.reversal) 
         <div class="col">
           <div class="inline">
             <span class="label-inline">判断正确切换为原有对比度的</span>
-            <el-input-number v-model="current.stepCorrect" :min="1" :max="200" :step="1" controls-position="right" size="large" style="width:160px;" />
+            <el-input-number :value="current.stepCorrect" @update:value="(val) => updateModule('stepCorrect', val)" :min="1" :max="200" :step="1" controls-position="right" size="large" style="width:160px;" />
             <span class="suffix">%</span>
           </div>
           <div class="inline" style="margin-top:8px;">
             <span class="label-inline">判断错误切换为原有对比度的</span>
-            <el-input-number v-model="current.stepWrong" :min="1" :max="200" :step="1" controls-position="right" size="large" style="width:160px;" />
+            <el-input-number :value="current.stepWrong" @update:value="(val) => updateModule('stepWrong', val)" :min="1" :max="200" :step="1" controls-position="right" size="large" style="width:160px;" />
             <span class="suffix">%</span>
           </div>
         </div>
@@ -61,7 +71,18 @@ const canSave = computed(() => !current.value || Number(current.value.reversal) 
 
     <div class="btns" v-if="current">
       <el-button type="primary" :disabled="Number(current.reversal) < minReversal" @click="store.saveModules">保存</el-button>
-      <el-button @click="() => Object.assign(current, { spatial:4, temporal:2, interval:1, duration:1, initialContrast:50, up:1, down:1, reversal:Math.max(10, minReversal), stepCorrect:80, stepWrong:120 })">重置</el-button>
+      <el-button @click="() => {
+        updateModule('spatial', 4)
+        updateModule('temporal', 2)
+        updateModule('interval', 1)
+        updateModule('duration', 1)
+        updateModule('initialContrast', 50)
+        updateModule('up', 1)
+        updateModule('down', 1)
+        updateModule('reversal', Math.max(10, minReversal))
+        updateModule('stepCorrect', 80)
+        updateModule('stepWrong', 120)
+      }">重置</el-button>
     </div>
   </div>
 </template>

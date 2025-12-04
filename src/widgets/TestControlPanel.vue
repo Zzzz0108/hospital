@@ -1,9 +1,20 @@
 <script setup>
+import { onMounted } from 'vue'
 import { useTestsStore } from '../stores/tests'
 import { useRouter } from 'vue-router'
 
 const store = useTestsStore()
 const router = useRouter()
+
+// 组件挂载时加载默认测试方案和测试结果
+onMounted(async () => {
+  await store.loadDefault()
+  // 如果有选中的患者，加载该患者的测试结果
+  const patientsStore = await import('../stores/patients').then(m => m.usePatientsStore())
+  if(patientsStore().selectedId){
+    await store.loadResults(patientsStore().selectedId)
+  }
+})
 </script>
 
 <template>
@@ -11,7 +22,7 @@ const router = useRouter()
     <div style="margin-bottom:8px;">已选被试：{{store.currentPatientText}}</div>
     <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
       <span>测试名称</span>
-      <el-input v-model="store.basic.name" size="large" style="max-width:320px;" />
+      <el-input :model-value="store.selectedTestName" readonly size="large" style="max-width:320px;" />
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
       <el-button @click="() => router.push({ path: '/config', query: { mode: 'update' } })">更改选定测试</el-button>
