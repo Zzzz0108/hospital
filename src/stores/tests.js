@@ -54,6 +54,10 @@ export const useTestsStore = defineStore('tests', {
       this.loading = true
       try{
         const res = await fetch(`${API_BASE}/test-templates/default`)
+        if(!res.ok){
+          console.warn('loadDefault: 后端返回非200状态', res.status)
+          return
+        }
         const data = await res.json()
         if(!data.ok) throw new Error(data.message || '加载失败')
         if(data.data){

@@ -5,10 +5,10 @@
       <h2>测试准备</h2>
       <p>请确认测试参数：</p>
       <div class="test-info">
-        <p><strong>测试名称：</strong>{{ runStore.currentTestName }}</p>
+        <p><strong>测试名称：</strong>{{ testsStore.selectedTestName }}</p>
         <p><strong>患者：</strong>{{ runStore.currentPatient?.name }}</p>
-        <p><strong>眼别：</strong>{{ runStore.currentTest?.eye }}</p>
-        <p><strong>模块数量：</strong>{{ runStore.moduleOrder.length }}</p>
+        <p><strong>眼别：</strong>{{ testsStore.eye }}</p>
+        <p><strong>模块数量：</strong>{{ testsStore.modules.length }}</p>
       </div>
       <el-button type="primary" size="large" @click="runStore.start()">开始测试</el-button>
     </div>
@@ -70,9 +70,11 @@
 <script setup>
 import { onMounted, onUnmounted } from 'vue'
 import { useRunStore } from '../stores/run'
+import { useTestsStore } from '../stores/tests'
 import RunCanvas from '../widgets/RunCanvas.vue'
 
 const runStore = useRunStore()
+const testsStore = useTestsStore()
 
 const handleKeyPress = (e) => {
   if (runStore.phase === 'guide' && e.code === 'Space') {

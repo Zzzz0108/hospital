@@ -26,30 +26,95 @@ const updateModule = (field, value) => {
     <div v-if="current" class="v-form">
       <div class="row">
         <span class="lbl">空间频率 (c/d)</span>
-        <el-input-number :value="current.spatial" @update:value="(val) => updateModule('spatial', val)" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number
+          :model-value="current.spatial"
+          @update:model-value="(val) => updateModule('spatial', val)"
+          :min="0"
+          :step="0.1"
+          controls-position="right"
+          size="large"
+          class="ctrl"
+        />
       </div>
       <div class="row">
         <span class="lbl">时间频率 (Hz)</span>
-        <el-input-number :value="current.temporal" @update:value="(val) => updateModule('temporal', val)" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number
+          :model-value="current.temporal"
+          @update:model-value="(val) => updateModule('temporal', val)"
+          :min="0"
+          :step="0.1"
+          controls-position="right"
+          size="large"
+          class="ctrl"
+        />
       </div>
       <div class="row">
         <span class="lbl">间隔时间 (s)</span>
-        <el-input-number :value="current.interval" @update:value="(val) => updateModule('interval', val)" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number
+          :model-value="current.interval"
+          @update:model-value="(val) => updateModule('interval', val)"
+          :min="0"
+          :step="0.1"
+          controls-position="right"
+          size="large"
+          class="ctrl"
+        />
       </div>
       <div class="row">
         <span class="lbl">持续时间 (s)</span>
-        <el-input-number :value="current.duration" @update:value="(val) => updateModule('duration', val)" :min="0" :step="0.1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number
+          :model-value="current.duration"
+          @update:model-value="(val) => updateModule('duration', val)"
+          :min="0"
+          :step="0.1"
+          controls-position="right"
+          size="large"
+          class="ctrl"
+        />
       </div>
       <div class="row">
         <span class="lbl">初始对比度 (%)</span>
-        <el-input-number :value="current.initialContrast" @update:value="(val) => updateModule('initialContrast', val)" :min="0" :max="100" :step="1" controls-position="right" size="large" class="ctrl" />
+        <el-input-number
+          :model-value="current.initialContrast"
+          @update:model-value="(val) => updateModule('initialContrast', val)"
+          :min="0"
+          :max="100"
+          :step="1"
+          controls-position="right"
+          size="large"
+          class="ctrl"
+        />
       </div>
       <div class="row">
         <span class="lbl">对比度切换逻辑</span>
         <div class="inline">
-          <el-input-number :value="current.up" @update:value="(val) => updateModule('up', val)" :min="1" :step="1" controls-position="right" size="large" style="width:120px;" />
-          <el-input-number :value="current.down" @update:value="(val) => updateModule('down', val)" :min="1" :step="1" controls-position="right" size="large" style="width:120px;margin-left:8px;" />
-          <el-input-number :value="current.reversal" @update:value="(val) => updateModule('reversal', val)" :min="minReversal" :step="1" controls-position="right" size="large" style="width:160px;margin-left:8px;" />
+          <el-input-number
+            :model-value="current.up"
+            @update:model-value="(val) => updateModule('up', val)"
+            :min="1"
+            :step="1"
+            controls-position="right"
+            size="large"
+            style="width:120px;"
+          />
+          <el-input-number
+            :model-value="current.down"
+            @update:model-value="(val) => updateModule('down', val)"
+            :min="1"
+            :step="1"
+            controls-position="right"
+            size="large"
+            style="width:120px;margin-left:8px;"
+          />
+          <el-input-number
+            :model-value="current.reversal"
+            @update:model-value="(val) => updateModule('reversal', val)"
+            :min="minReversal"
+            :step="1"
+            controls-position="right"
+            size="large"
+            style="width:160px;margin-left:8px;"
+          />
         </div>
       </div>
       <div class="row">
@@ -57,12 +122,30 @@ const updateModule = (field, value) => {
         <div class="col">
           <div class="inline">
             <span class="label-inline">判断正确切换为原有对比度的</span>
-            <el-input-number :value="current.stepCorrect" @update:value="(val) => updateModule('stepCorrect', val)" :min="1" :max="200" :step="1" controls-position="right" size="large" style="width:160px;" />
+            <el-input-number
+              :model-value="current.stepCorrect"
+              @update:model-value="(val) => updateModule('stepCorrect', val)"
+              :min="1"
+              :max="200"
+              :step="1"
+              controls-position="right"
+              size="large"
+              style="width:160px;"
+            />
             <span class="suffix">%</span>
           </div>
           <div class="inline" style="margin-top:8px;">
             <span class="label-inline">判断错误切换为原有对比度的</span>
-            <el-input-number :value="current.stepWrong" @update:value="(val) => updateModule('stepWrong', val)" :min="1" :max="200" :step="1" controls-position="right" size="large" style="width:160px;" />
+            <el-input-number
+              :model-value="current.stepWrong"
+              @update:model-value="(val) => updateModule('stepWrong', val)"
+              :min="1"
+              :max="200"
+              :step="1"
+              controls-position="right"
+              size="large"
+              style="width:160px;"
+            />
             <span class="suffix">%</span>
           </div>
         </div>

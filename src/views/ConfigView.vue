@@ -53,7 +53,7 @@ async function goBack(){
       <div class="cfg-header">
         <el-tabs v-model="activeTab" type="card" class="cfg-tabs" @tab-change="(name)=>{ if(name==='add'){ const nid = store.addModule(); selectedModuleId.value ? selectedModuleId.value=nid : selectedModuleId=nid; activeTab=`module-${nid}` } }">
           <el-tab-pane label="测试信息" name="basic" />
-          <el-tab-pane v-for="m in store.modules" :key="m.id" :label="`模块${m.name}`" :name="`module-${m.id}`" />
+          <el-tab-pane v-for="m in store.modules" :key="m.id" :label="m.name" :name="`module-${m.id}`" />
           <el-tab-pane label="模块 +" name="add" />
         </el-tabs>
         <div class="actions">
