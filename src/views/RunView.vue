@@ -28,7 +28,7 @@
     <div v-if="runStore.phase === 'canvas'" class="phase-content">
       <div class="test-header">
         <h3>模块 {{ runStore.currentModuleIndex + 1 }} / {{ runStore.moduleOrder.length }}</h3>
-        <p>当前对比度: {{ runStore.currentContrast.toFixed(1) }}% | 试验: {{ runStore.currentTrial }}</p>
+        <p>当前对比度: {{ Number(runStore.currentContrast || 0).toFixed(1) }}% | 试验: {{ runStore.currentTrial }}</p>
         <p>Reversal: {{ runStore.reversalCount }} / {{ runStore.currentModule?.reversal }}</p>
       </div>
       
@@ -55,6 +55,11 @@
           <div v-for="(result, index) in runStore.moduleResults" :key="index" class="threshold-item">
             <p>模块 {{ index + 1 }}: {{ result.threshold.toFixed(2) }}% 
                (空间频率: {{ result.spatial }} c/d, 时间频率: {{ result.temporal }} Hz)</p>
+            <ContrastChart
+              v-if="result.trials && result.trials.length"
+              :trials="result.trials"
+              :title="`模块 ${index + 1} 对比度变化`"
+            />
           </div>
         </div>
       </div>
@@ -72,6 +77,7 @@ import { onMounted, onUnmounted } from 'vue'
 import { useRunStore } from '../stores/run'
 import { useTestsStore } from '../stores/tests'
 import RunCanvas from '../widgets/RunCanvas.vue'
+import ContrastChart from '../widgets/ContrastChart.vue'
 
 const runStore = useRunStore()
 const testsStore = useTestsStore()

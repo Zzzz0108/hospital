@@ -48,10 +48,23 @@ export const useRunStore = defineStore('run', {
         return
       }
       
+      // 每次开始新测试前，清空上一次的状态
       this.phase = 'guide'
       this.currentTest = tests
       this.currentModuleIndex = 0
+      this.currentModule = null
       this.moduleOrder = tests.moduleOrder // 使用测试store的模块顺序
+      this.currentTrial = 0
+      this.currentContrast = 50
+      this.correctCount = 0
+      this.wrongCount = 0
+      this.reversalCount = 0
+      this.lastDirection = null
+      this.trials = []
+      this.moduleResults = []
+      this.startTime = null
+      this.clearTimers()
+
       this.startModule()
     },
     
@@ -232,6 +245,11 @@ export const useRunStore = defineStore('run', {
     },
     
     finishModule(){
+      // 防止同一个模块被重复结束（例如由于多次触发 nextTrial）
+      if (this.moduleResults.some(r => r.moduleIndex === this.currentModuleIndex)) {
+        return
+      }
+
       // 计算阈值：最后 N 次 reversal 的对比度平均值
       const reversalTrials = this.trials.filter(t => t.reversal)
       const lastN = reversalTrials.slice(-this.currentTest.basic.resultReversalN)
@@ -266,6 +284,25 @@ export const useRunStore = defineStore('run', {
     async finishTest(){
       // 保存完整测试结果到数据库
       try {
+        // 为后端构造精简版的模块结果和试验记录，避免 payload 过大
+        const slimModuleResults = this.moduleResults.map(r => ({
+          moduleIndex: r.moduleIndex,
+          threshold: r.threshold,
+          spatial: r.spatial,
+          temporal: r.temporal,
+          reversalCount: r.reversalCount,
+          totalTrials: r.totalTrials,
+          duration: r.duration,
+        }))
+
+        // 将所有模块的 trials 扁平化为一个数组，附带 moduleIndex
+        const allTrials = this.moduleResults.flatMap(r =>
+          (r.trials || []).map(t => ({
+            ...t,
+            moduleIndex: r.moduleIndex,
+          }))
+        )
+
         const res = await fetch('http://localhost:3001/api/test-sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -277,32 +314,19 @@ export const useRunStore = defineStore('run', {
             mode: this.currentTest.basic.mode,
             basic: this.currentTest.basic,
             modules: this.moduleOrder, // 模块配置
-            moduleResults: this.moduleResults, // 模块结果
-            trials: this.trials, // 所有试验记录
+            moduleResults: slimModuleResults, // 精简模块结果
+            trials: allTrials, // 所有试验记录（按 moduleIndex 区分模块）
             totalDuration: Date.now() - this.startTime
           })
         })
         
         const data = await res.json()
         if(!data.ok) throw new Error(data.message || '保存失败')
-        
-        // 同时保存到本地 state（用于显示）
-        const result = {
-          id: data.data.id,
-          patientId: this.currentPatient.id,
-          testName: this.currentTestName,
-          eye: this.currentTest.eye,
-          mode: this.currentTest.basic.mode,
-          moduleResults: this.moduleResults,
-          totalDuration: Date.now() - this.startTime,
-          timestamp: new Date().toISOString(),
-          time: new Date().toLocaleString()
-        }
-        
-        // 添加到已完成测试列表
-        if(!this.currentTest.results) this.currentTest.results = []
-        this.currentTest.results.push(result)
-        
+
+        // 重新从数据库加载该患者的测试结果列表，确保“一次测试=一条记录”
+        const testsStore = useTestsStore()
+        await testsStore.loadResults(this.currentPatient.id)
+
         this.phase = 'end'
       } catch (e) {
         console.error('save test result error', e)

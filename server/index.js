@@ -6,7 +6,8 @@ const app = express()
 const PORT = process.env.PORT || 3001
 
 app.use(cors())
-app.use(express.json())
+// 提高 JSON 请求体大小上限，避免保存测试结果时报 413
+app.use(express.json({ limit: '2mb' }))
 
 // 健康检查
 app.get('/api/health', (req, res) => {

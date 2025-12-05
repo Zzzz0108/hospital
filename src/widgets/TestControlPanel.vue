@@ -1,18 +1,19 @@
 <script setup>
 import { onMounted } from 'vue'
 import { useTestsStore } from '../stores/tests'
+import { usePatientsStore } from '../stores/patients'
 import { useRouter } from 'vue-router'
 
 const store = useTestsStore()
+const patientsStore = usePatientsStore()
 const router = useRouter()
 
 // 组件挂载时加载默认测试方案和测试结果
 onMounted(async () => {
   await store.loadDefault()
   // 如果有选中的患者，加载该患者的测试结果
-  const patientsStore = await import('../stores/patients').then(m => m.usePatientsStore())
-  if(patientsStore().selectedId){
-    await store.loadResults(patientsStore().selectedId)
+  if(patientsStore.selectedId){
+    await store.loadResults(patientsStore.selectedId)
   }
 })
 </script>
