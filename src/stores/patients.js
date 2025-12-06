@@ -18,7 +18,16 @@ export const usePatientsStore = defineStore('patients', {
         const data = await res.json()
         if(!data.ok) throw new Error(data.message || '加载失败')
         // 后端返回的数据字段：id, name, gender, birthday
-        this.all = data.data || []
+        // 按ID排序（数字ID按数字排序，字符串ID按字符串排序）
+        this.all = (data.data || []).sort((a, b) => {
+          // 尝试将ID转换为数字进行比较，如果都是数字则按数字排序，否则按字符串排序
+          const aNum = Number(a.id)
+          const bNum = Number(b.id)
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return aNum - bNum
+          }
+          return String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' })
+        })
         this.lastSearchQuery = null // 清空搜索条件
         this.filtered = this.all // 直接显示全部，不分页
       } catch (e){
@@ -44,7 +53,16 @@ export const usePatientsStore = defineStore('patients', {
         if(!data.ok) throw new Error(data.message || '新增失败')
         const id = data.data.id
         const rec = { id, name:p.name, gender:p.gender, birthday:p.birthday }
-        this.all.unshift(rec)
+        this.all.push(rec)
+        // 重新排序
+        this.all.sort((a, b) => {
+          const aNum = Number(a.id)
+          const bNum = Number(b.id)
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            return aNum - bNum
+          }
+          return String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' })
+        })
         
         // 如果有搜索条件，重新应用搜索；否则直接显示全部
         if(this.lastSearchQuery){
@@ -83,7 +101,16 @@ export const usePatientsStore = defineStore('patients', {
         if(newId !== oldId){
           this.all = this.all.filter(x => x.id !== oldId)
           const newRec = { id: newId, name: p.name, gender: p.gender, birthday: p.birthday }
-          this.all.unshift(newRec)
+          this.all.push(newRec)
+          // 重新排序
+          this.all.sort((a, b) => {
+            const aNum = Number(a.id)
+            const bNum = Number(b.id)
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+              return aNum - bNum
+            }
+            return String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' })
+          })
           this.selectedId = newId // 更新选中 ID
         } else {
           // ID 没变，直接更新 all 数组中的数据
@@ -135,6 +162,15 @@ export const usePatientsStore = defineStore('patients', {
         (!q.birthday || s(x.birthday).includes(s(q.birthday))) &&
         (!q.id || s(x.id).includes(s(q.id)))
       )
+      // 搜索结果也按ID排序
+      rows.sort((a, b) => {
+        const aNum = Number(a.id)
+        const bNum = Number(b.id)
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return aNum - bNum
+        }
+        return String(a.id).localeCompare(String(b.id), undefined, { numeric: true, sensitivity: 'base' })
+      })
       this.filtered = rows // 直接显示搜索结果，不分页
     },
   }

@@ -89,8 +89,12 @@ const handleKeyPress = (e) => {
   } else if (runStore.phase === 'canvas') {
     if (e.code === 'Escape') {
       e.preventDefault()
-      // 测试过程中按ESC：直接结束测试
-      runStore.phase = 'end'
+      // 测试过程中按ESC：保存当前进度并结束测试
+      if (!runStore.currentSessionId && runStore.moduleResults.length > 0) {
+        runStore.finishTest()
+      } else {
+        runStore.phase = 'end'
+      }
     } else {
       const mode = runStore.currentTest?.basic?.mode || 'auto'
       
@@ -131,9 +135,18 @@ const handleKeyPress = (e) => {
   }
 }
 
-const exportResults = () => {
-  // TODO: 实现导出功能
-  console.log('导出结果', runStore.moduleResults)
+const exportResults = async () => {
+  try {
+    if (!runStore.currentSessionId) {
+      alert('测试结果尚未保存，无法导出')
+      return
+    }
+    const { exportTestResult } = await import('../utils/exporter')
+    await exportTestResult(runStore.currentSessionId)
+  } catch (e) {
+    console.error('exportResults error', e)
+    alert('导出失败：' + (e.message || '请检查后端服务'))
+  }
 }
 
 onMounted(() => {

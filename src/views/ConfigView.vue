@@ -20,6 +20,20 @@ if (store.modules.length === 0) {
   selectedModuleId.value = store.modules[0].id
 }
 
+// 监听模块列表变化，如果当前选中的模块被删除，切换到其他模块
+watch(() => store.modules, (newModules) => {
+  if (selectedModuleId.value && !newModules.find(m => m.id === selectedModuleId.value)) {
+    // 当前选中的模块已被删除，切换到第一个模块
+    if (newModules.length > 0) {
+      selectedModuleId.value = newModules[0].id
+      activeTab.value = `module-${newModules[0].id}`
+    } else {
+      // 如果没有模块了，切换到 basic
+      activeTab.value = 'basic'
+    }
+  }
+}, { deep: true })
+
 watch(() => route.query.mode, async (m) => {
   if (m === 'create') {
     // 新增模式：清空当前测试，创建新模块
@@ -67,7 +81,7 @@ async function goBack(){
           <TestBasicForm />
         </div>
         <div v-for="m in store.modules" :key="m.id" v-show="activeTab===`module-${m.id}`" class="pane">
-          <ModuleEditor v-model:selected-id="selectedModuleId" />
+          <ModuleEditor :selected-id="m.id" @update:selected-id="(id) => { selectedModuleId = id; activeTab = `module-${id}` }" />
         </div>
       </div>
     </el-card>

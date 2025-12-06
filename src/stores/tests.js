@@ -247,9 +247,21 @@ export const useTestsStore = defineStore('tests', {
         stepCorrect: 80, 
         stepWrong: 120 
       })
+      // 重新计算所有模块的名称，确保编号连续
+      this.updateModuleNames()
       return id
     },
-    removeModule(id){ this.modules = this.modules.filter(m=>m.id!==id) },
+    removeModule(id){ 
+      this.modules = this.modules.filter(m=>m.id!==id)
+      // 删除后重新计算所有模块的名称，确保编号连续
+      this.updateModuleNames()
+    },
+    // 更新所有模块的名称，确保编号连续（1, 2, 3...）
+    updateModuleNames(){
+      this.modules.forEach((m, idx) => {
+        m.name = `模块${idx + 1}`
+      })
+    },
     // 提交所有测试信息（保存测试方案）
     async saveModules(){
       if(!this.basic.name){
@@ -282,11 +294,19 @@ export const useTestsStore = defineStore('tests', {
         console.error('loadResults error', e)
       }
     },
-    exportOne(id){
+    async exportOne(id){
       const rec = this.results.find(x=>x.id===id)
-      if(!rec) return
-      // TODO: 从数据库加载完整数据并导出
-      exportJsonToXlsx([rec], `结果_${id}.xlsx`)
+      if(!rec) {
+        alert('未找到测试记录')
+        return
+      }
+      try {
+        const { exportTestResult } = await import('../utils/exporter')
+        await exportTestResult(id)
+      } catch (e) {
+        console.error('exportOne error', e)
+        alert('导出失败：' + (e.message || '请检查后端服务'))
+      }
     }
   }
 })

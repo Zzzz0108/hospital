@@ -42,7 +42,7 @@ app.post('/api/patients', async (req, res) => {
 app.get('/api/patients', async (req, res) => {
   try {
     const rows = await query(
-      'SELECT id, name, gender, DATE_FORMAT(birthday, "%Y-%m-%d") as birthday FROM patient ORDER BY birthday DESC',
+      'SELECT id, name, gender, DATE_FORMAT(birthday, "%Y-%m-%d") as birthday FROM patient ORDER BY CAST(id AS UNSIGNED), id',
       []
     )
     res.json({ ok: true, data: rows })
@@ -365,7 +365,60 @@ app.post('/api/test-sessions', async (req, res) => {
   }
 })
 
-// 获取患者的测试结果列表
+// 获取完整的测试会话数据（用于导出）- 必须在 /api/test-sessions 之前定义
+app.get('/api/test-sessions/:id/export', async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    // 获取测试会话基本信息
+    const sessions = await query(
+      `SELECT s.*, p.name as patient_name, p.gender, p.birthday, p.id as patient_id_str
+       FROM test_session s
+       LEFT JOIN patient p ON s.patient_id = p.id
+       WHERE s.id = ?`,
+      [id]
+    )
+    
+    if (sessions.length === 0) {
+      return res.status(404).json({ ok: false, message: '测试会话不存在' })
+    }
+    
+    const session = sessions[0]
+    
+    // 获取模块配置
+    const modules = await query(
+      `SELECT * FROM test_session_module WHERE test_session_id = ? ORDER BY module_index`,
+      [id]
+    )
+    
+    // 获取模块结果
+    const moduleResults = await query(
+      `SELECT * FROM test_module_result WHERE test_session_id = ? ORDER BY module_index`,
+      [id]
+    )
+    
+    // 获取所有试验记录
+    const trials = await query(
+      `SELECT * FROM test_trial WHERE test_session_id = ? ORDER BY module_index, trial_index`,
+      [id]
+    )
+    
+    res.json({
+      ok: true,
+      data: {
+        session,
+        modules,
+        moduleResults,
+        trials
+      }
+    })
+  } catch (err) {
+    console.error('GET /api/test-sessions/:id/export error:', err)
+    res.status(500).json({ ok: false, message: '服务器错误', error: err.message })
+  }
+})
+
+// 获取患者的测试结果列表（必须在 /api/test-sessions/:id/export 之后定义）
 app.get('/api/test-sessions', async (req, res) => {
   try {
     const { patientId } = req.query

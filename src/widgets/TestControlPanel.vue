@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useTestsStore } from '../stores/tests'
 import { usePatientsStore } from '../stores/patients'
 import { useRouter } from 'vue-router'
@@ -8,13 +8,22 @@ const store = useTestsStore()
 const patientsStore = usePatientsStore()
 const router = useRouter()
 
-// 组件挂载时加载默认测试方案和测试结果
+// 加载测试结果的函数
+const loadTestResults = async () => {
+  // 如果有选中的患者，加载该患者的测试结果；否则加载所有测试结果
+  await store.loadResults(patientsStore.selectedId || null)
+}
+
+// 组件挂载时加载默认测试方案和所有测试结果
 onMounted(async () => {
   await store.loadDefault()
-  // 如果有选中的患者，加载该患者的测试结果
-  if(patientsStore.selectedId){
-    await store.loadResults(patientsStore.selectedId)
-  }
+  // 初始化时加载所有测试结果（不传 patientId 表示加载所有）
+  await loadTestResults()
+})
+
+// 监听患者选择变化，当患者被选中或取消选中时，重新加载测试结果
+watch(() => patientsStore.selectedId, async (newId) => {
+  await loadTestResults()
 })
 </script>
 

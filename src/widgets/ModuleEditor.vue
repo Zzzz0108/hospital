@@ -10,12 +10,36 @@ const current = computed(() => store.modules.find(m => m.id === props.selectedId
 const minReversal = computed(() => Number(store.basic?.resultReversalN || 1))
 const canSave = computed(() => !current.value || Number(current.value.reversal) >= minReversal.value)
 
-// 更新模块参数的方法
+// 更新模块参数的方法（直接修改对象属性，保持响应式）
 const updateModule = (field, value) => {
   if (current.value) {
     const moduleIndex = store.modules.findIndex(m => m.id === props.selectedId)
     if (moduleIndex !== -1) {
-      store.modules[moduleIndex] = { ...store.modules[moduleIndex], [field]: value }
+      // 直接修改对象属性，而不是替换整个对象，这样可以保持 Vue 的响应式
+      store.modules[moduleIndex][field] = value
+    }
+  }
+}
+
+// 删除模块
+const handleDelete = () => {
+  if (!current.value) return
+  if (store.modules.length <= 1) {
+    alert('至少需要保留一个模块')
+    return
+  }
+  if (confirm(`确定要删除 ${current.value.name} 吗？`)) {
+    const currentId = current.value.id
+    const currentIndex = store.modules.findIndex(m => m.id === currentId)
+    store.removeModule(currentId)
+    // 删除后，切换到其他模块
+    if (store.modules.length > 0) {
+      // 如果删除的不是最后一个，切换到下一个；否则切换到上一个
+      const nextIndex = currentIndex < store.modules.length ? currentIndex : currentIndex - 1
+      const nextModule = store.modules[nextIndex]
+      if (nextModule) {
+        emit('update:selectedId', nextModule.id)
+      }
     }
   }
 }
@@ -166,6 +190,7 @@ const updateModule = (field, value) => {
         updateModule('stepCorrect', 80)
         updateModule('stepWrong', 120)
       }">重置</el-button>
+      <el-button type="danger" @click="handleDelete">删除</el-button>
     </div>
   </div>
 </template>
