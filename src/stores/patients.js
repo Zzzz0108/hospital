@@ -53,7 +53,7 @@ export const usePatientsStore = defineStore('patients', {
         if(!data.ok) throw new Error(data.message || '新增失败')
         const id = data.data.id
         const rec = { id, name:p.name, gender:p.gender, birthday:p.birthday }
-        this.all.push(rec)
+      this.all.push(rec)
         // 重新排序
         this.all.sort((a, b) => {
           const aNum = Number(a.id)
@@ -70,7 +70,7 @@ export const usePatientsStore = defineStore('patients', {
         } else {
           this.filtered = this.all
         }
-        this.selectedId = id
+      this.selectedId = id
       } catch (e){
         console.error('add patient error', e)
         alert('新增患者失败，请检查后端服务')
@@ -146,7 +146,7 @@ export const usePatientsStore = defineStore('patients', {
         } else {
           this.filtered = this.all
         }
-        this.selectedId = null
+      this.selectedId = null
       } catch (e){
         console.error('remove patient error', e)
         alert('删除患者失败，请检查后端服务')

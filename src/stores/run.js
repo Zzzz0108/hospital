@@ -21,6 +21,7 @@ export const useRunStore = defineStore('run', {
     trials: [], // 记录每次试验
     moduleResults: [], // 每个模块的结果
     startTime: null,
+    trialStartTime: null, // 当前试验的开始时间（用于计算剩余时间）
     displayTimer: null,
     intervalTimer: null,
     responseTimer: null, // 2秒响应超时
@@ -29,6 +30,7 @@ export const useRunStore = defineStore('run', {
     isFinishing: false, // 防止 finishTest 被多次调用
     isFinishingModule: false, // 防止 finishModule 被多次调用
     isShowingGrating: false, // 是否正在显示光栅（用于控制 RunCanvas 的绘制）
+    currentTrialProcessed: false, // 当前试验是否已经处理过响应（防止重复处理）
   }),
   getters: {
     isModuleComplete(){
@@ -153,13 +155,17 @@ export const useRunStore = defineStore('run', {
       this.startTime = Date.now()
       this.isFinishingModule = false // 确保标志已重置
       
-      // 如果是从模块间隔时间后启动的，设置 phase 为 canvas（但不自动开始测试）
+      // 如果是从模块间隔时间后启动的，设置 phase 为 canvas 并自动开始测试
       if (this.phase === 'moduleGap') {
         this.phase = 'canvas'
+        // 模块间隔后自动开始测试（不需要用户再次点击）
+        console.log(`[startModule] Module gap ended, auto-starting module ${this.currentModuleIndex + 1}`)
+        // 延迟一小段时间，确保状态已更新
+        setTimeout(() => {
+          this.nextTrial()
+        }, 100)
       }
-      
-      // 注意：这里不自动调用 nextTrial()，等待用户点击"开始测试"按钮或按空格键
-      // 只有在 startCanvas() 中才会调用 nextTrial()
+      // 注意：如果是第一次启动（phase === 'guide'），不自动开始，等待用户点击"开始测试"按钮
     },
     
     startCanvas(){
@@ -213,20 +219,17 @@ export const useRunStore = defineStore('run', {
       }
       
       this.currentTrial++
+      this.currentTrialProcessed = false // 重置处理标志
       console.log(`[nextTrial] 开始试验 ${this.currentTrial} (reversal: ${this.reversalCount}/${this.currentModule.reversal})`)
       
       // 确保 currentContrast 是数字
       this.currentContrast = Number(this.currentContrast) || 50
       
-      // 如果对比度改变了，重新随机选择方向；否则保持当前方向
-      if (this.lastContrast !== this.currentContrast) {
-        this.currentDirection = this.getRandomDirection()
-        this.currentContrastDirection = this.currentDirection
-        this.lastContrast = this.currentContrast
-      } else {
-        // 对比度未改变，保持当前方向
-        this.currentDirection = this.currentContrastDirection || this.getRandomDirection()
-      }
+      // 每次试验都随机选择方向（不管对错）
+      this.currentDirection = this.getRandomDirection()
+      
+      // 更新 lastContrast（用于其他逻辑，但不影响方向选择）
+      this.lastContrast = this.currentContrast
       
       // 防止无限循环：如果试验次数过多，强制结束模块
       if (this.currentTrial > 200) {
@@ -286,6 +289,9 @@ export const useRunStore = defineStore('run', {
         return
       }
       
+      // 记录当前试验的开始时间（用于计算剩余时间）
+      this.trialStartTime = Date.now()
+      
       // 标记开始显示光栅
       this.isShowingGrating = true
       
@@ -293,65 +299,154 @@ export const useRunStore = defineStore('run', {
       const duration = Number(this.currentModule.duration) || 1
       const interval = Number(this.currentModule.interval) || 1
       
+      // 保存当前试验编号，用于 hideGrating 中检查
+      const trialNumber = this.currentTrial
+      
       console.log(`[测试] 开始显示光栅 - 试验: ${this.currentTrial}, 对比度: ${contrast.toFixed(1)}%, 方向: ${this.currentDirection}, 持续时间: ${duration}s, 间隔时间: ${interval}s`)
       
       // 显示光栅 duration 秒（持续时间）
       const durationMs = duration * 1000
       this.displayTimer = setTimeout(() => {
-        this.hideGrating()
+        // 传入试验编号，让 hideGrating 检查是否匹配
+        this.hideGrating(trialNumber)
       }, durationMs)
       
       // 响应超时：持续时间 + 间隔时间（患者需要在这个总时间段内做出判断）
       const totalResponseTime = (duration + interval) * 1000
       this.responseTimer = setTimeout(() => {
-        this.handleTimeout()
+        // 传入试验编号，让 handleTimeout 检查是否匹配
+        this.handleTimeout(trialNumber)
       }, totalResponseTime)
     },
     
-    hideGrating(){
+    hideGrating(trialNumber = null){
       // 检查是否有当前模块（可能在 finishModule 中被清除了）
       if (!this.currentModule) {
         console.warn('[hideGrating] No current module, skipping')
         return
       }
       
-      // 清除显示定时器
+      // 如果传入了试验编号，检查是否匹配（防止上一个试验的回调在新试验中执行）
+      if (trialNumber !== null && this.currentTrial !== trialNumber) {
+        console.log(`[hideGrating] 试验编号不匹配 (期望: ${trialNumber}, 实际: ${this.currentTrial})，跳过隐藏光栅`)
+        return
+      }
+      
+      // 清除显示定时器（防止重复调用）
       if (this.displayTimer) {
         clearTimeout(this.displayTimer)
         this.displayTimer = null
       }
       
-      // 标记隐藏光栅（进入间隔时间）
+      // 标记隐藏光栅（进入间隔时间，但患者仍可在此时间内响应）
+      // 即使患者已经响应，也要隐藏光栅，完成整个试验周期
       this.isShowingGrating = false
       
       const interval = Number(this.currentModule.interval) || 1
-      console.log(`[测试] 隐藏光栅 - 间隔时间: ${interval}s`)
+      if (this.currentTrialProcessed) {
+        // 患者已经响应，但为了完成试验周期，仍然隐藏光栅
+        console.log(`[测试] 隐藏光栅 - 进入间隔时间: ${interval}s（患者已响应，等待试验周期结束）`)
+      } else {
+        console.log(`[测试] 隐藏光栅 - 进入间隔时间: ${interval}s（患者仍可在此时间内响应）`)
+      }
       
-      // 隐藏光栅后，等待 interval 秒（间隔时间），然后开始下一个试验
-      // 注意：如果患者在间隔时间内响应了，会在 handleKeyPress 中清除这个定时器
-      const intervalMs = interval * 1000
-      this.intervalTimer = setTimeout(() => {
-        this.intervalTimer = null
-        // 间隔时间结束，开始下一个试验
-        console.log(`[测试] 间隔时间结束，开始下一个试验`)
-        this.nextTrial()
-      }, intervalMs)
+      // 注意：不设置额外的 intervalTimer，因为：
+      // 1. responseTimer 已经设置为 duration + interval，会在总时间后触发超时
+      // 2. 如果患者在间隔时间内响应，handleKeyPress 会清除 responseTimer
+      // 3. 如果患者未响应，handleTimeout 会在 duration + interval 后触发
     },
     
-    handleTimeout(){
+    handleTimeout(trialNumber = null){
+      // 如果传入了试验编号，检查是否匹配（防止上一个试验的回调在新试验中执行）
+      if (trialNumber !== null && this.currentTrial !== trialNumber) {
+        console.log(`[handleTimeout] 试验编号不匹配 (期望: ${trialNumber}, 实际: ${this.currentTrial})，跳过超时处理`)
+        return
+      }
+      
+      // 检查是否已经处理过这次试验的响应了（防止重复处理）
+      if (this.currentTrialProcessed) {
+        console.warn(`[handleTimeout] Trial ${this.currentTrial} already processed, skipping (duplicate call)`)
+        return
+      }
+      
+      // 检查是否已经有响应了（防止重复处理）
+      if (!this.responseTimer) {
+        console.warn(`[handleTimeout] Response timer already cleared (patient already responded), skipping`)
+        return
+      }
+      
+      // 标记当前试验已处理
+      this.currentTrialProcessed = true
+      
+      console.log(`[测试] 响应超时 - 试验: ${this.currentTrial}, 对比度: ${Number(this.currentContrast).toFixed(1)}%`)
+      
       // 在持续时间 + 间隔时间内未响应，判定为错误
-      // 清除响应超时定时器
+      // 清除所有定时器（防止重复触发）
       if (this.responseTimer) {
         clearTimeout(this.responseTimer)
         this.responseTimer = null
       }
-      // 如果间隔定时器还在运行，清除它（因为超时了，不需要等待间隔时间）
+      if (this.displayTimer) {
+        clearTimeout(this.displayTimer)
+        this.displayTimer = null
+      }
       if (this.intervalTimer) {
         clearTimeout(this.intervalTimer)
         this.intervalTimer = null
       }
-      // 处理超时响应（会记录错误，调整对比度，然后开始下一个试验）
-      this.handleKeyPress('timeout')
+      
+      // 确保光栅已隐藏
+      this.isShowingGrating = false
+      
+      // 直接处理超时响应（记录错误，调整对比度，然后开始下一个试验）
+      // 注意：这里直接调用 handleKeyPress，但需要先清除 responseTimer，所以 handleKeyPress 会检查并跳过
+      // 因此我们需要直接处理超时逻辑，而不是调用 handleKeyPress
+      const isCorrect = false // 超时视为错误
+      const responseTime = Date.now() - this.startTime
+      
+      console.log(`[测试] 患者响应 - 按键: timeout, 正确方向: ${this.currentDirection}, 判断: 错误`)
+      
+      // 记录试验
+      const trial = {
+        trial: this.currentTrial,
+        moduleIndex: this.currentModuleIndex,
+        direction: this.currentDirection,
+        response: 'timeout',
+        correct: false,
+        contrast: this.currentContrast,
+        spatial: this.currentModule.spatial,
+        temporal: this.currentModule.temporal,
+        responseTime,
+        timestamp: Date.now()
+      }
+      this.trials.push(trial)
+      
+      // 更新计数（超时视为错误）
+      this.wrongCount++
+      this.correctCount = 0
+      
+      // 记录调整前的对比度
+      const contrastBeforeAdjust = this.currentContrast
+      
+      // 检测 reversal
+      this.checkReversal(isCorrect)
+      
+      // 调整对比度
+      this.adjustContrast(isCorrect)
+      
+      // 记录调整后的对比度
+      const contrastAfterAdjust = this.currentContrast
+      
+      // 更新 lastContrast（用于其他逻辑）
+      if (Math.abs(contrastBeforeAdjust - contrastAfterAdjust) > 0.01) {
+        this.lastContrast = contrastAfterAdjust
+        console.log(`[测试] 对比度改变: ${contrastBeforeAdjust.toFixed(1)}% → ${contrastAfterAdjust.toFixed(1)}%`)
+      } else {
+        console.log(`[测试] 对比度未改变: ${contrastAfterAdjust.toFixed(1)}%`)
+      }
+      
+      // 超时后立即开始下一个试验
+      setTimeout(() => this.nextTrial(), 100)
     },
     
     handleKeyPress(key){
@@ -364,10 +459,40 @@ export const useRunStore = defineStore('run', {
         return
       }
       
-      // 清除响应超时定时器
+      // 检查是否已经处理过这次试验的响应了（防止重复处理）
+      if (this.currentTrialProcessed) {
+        console.warn(`[handleKeyPress] Trial ${this.currentTrial} already processed, skipping (duplicate call)`)
+        return
+      }
+      
+      // 检查 responseTimer 是否存在（如果不存在，说明已经被处理过了）
+      if (!this.responseTimer) {
+        console.warn(`[handleKeyPress] Response timer already cleared for trial ${this.currentTrial}, skipping (duplicate call)`)
+        return
+      }
+      
+      // 标记当前试验已处理（必须在清除定时器之前标记，防止 handleTimeout 后续触发）
+      this.currentTrialProcessed = true
+      
+      // 获取当前试验的参数（用于计算总时间）
+      const duration = Number(this.currentModule.duration) || 1
+      const interval = Number(this.currentModule.interval) || 1
+      const totalTime = (duration + interval) * 1000 // 总时间（毫秒）
+      
+      // 清除响应超时定时器（防止超时处理）
       if (this.responseTimer) {
         clearTimeout(this.responseTimer)
         this.responseTimer = null
+      }
+      
+      // 不清除 displayTimer，让它继续执行，隐藏光栅（保持试验的完整周期）
+      // 如果患者在显示期间响应，displayTimer 会继续执行，隐藏光栅
+      // 如果患者在间隔期间响应，displayTimer 已经执行过了，光栅已经隐藏
+      
+      // 清除其他定时器（如果有）
+      if (this.intervalTimer) {
+        clearTimeout(this.intervalTimer)
+        this.intervalTimer = null
       }
       
       const isCorrect = key === this.currentDirection
@@ -399,28 +524,53 @@ export const useRunStore = defineStore('run', {
         this.correctCount = 0
       }
       
+      // 记录调整前的对比度（用于判断是否改变）
+      const contrastBeforeAdjust = this.currentContrast
+      
       // 检测 reversal
       this.checkReversal(isCorrect)
       
       // 调整对比度
       this.adjustContrast(isCorrect)
       
-      // 清除显示定时器（如果还在运行）
-      if (this.displayTimer) {
-        clearTimeout(this.displayTimer)
-        this.displayTimer = null
+      // 记录调整后的对比度
+      const contrastAfterAdjust = this.currentContrast
+      
+      // 更新 lastContrast（用于其他逻辑，但不影响方向选择，因为每次试验都会随机选择方向）
+      if (Math.abs(contrastBeforeAdjust - contrastAfterAdjust) > 0.01) {
+        this.lastContrast = contrastAfterAdjust
+        console.log(`[测试] 对比度改变: ${contrastBeforeAdjust.toFixed(1)}% → ${contrastAfterAdjust.toFixed(1)}%`)
+      } else {
+        console.log(`[测试] 对比度未改变: ${contrastAfterAdjust.toFixed(1)}%`)
       }
       
-      // 如果间隔定时器还在运行，说明患者在间隔时间内响应了
-      // 清除间隔定时器，立即开始下一个试验（不等待剩余的间隔时间）
-      if (this.intervalTimer) {
-        clearTimeout(this.intervalTimer)
-        this.intervalTimer = null
-        // 立即开始下一个试验
-        setTimeout(() => this.nextTrial(), 100)
+      // 计算从当前试验开始到现在已经过去的时间
+      const elapsedTime = Date.now() - (this.trialStartTime || this.startTime)
+      const remainingTime = Math.max(0, totalTime - elapsedTime)
+      
+      // 患者已响应，但需要等待整个试验周期（duration + interval）结束后再开始下一个试验
+      // 如果患者在显示期间响应，等待剩余时间（包括隐藏光栅的时间）
+      // 如果患者在间隔期间响应，等待剩余时间
+      if (remainingTime > 0) {
+        console.log(`[测试] 患者已响应，等待试验周期结束（剩余 ${remainingTime}ms）后开始下一个试验`)
+        setTimeout(() => {
+          // 确保光栅已隐藏
+          this.isShowingGrating = false
+          // 清除 displayTimer（如果还在运行）
+          if (this.displayTimer) {
+            clearTimeout(this.displayTimer)
+            this.displayTimer = null
+          }
+          // 开始下一个试验
+          this.nextTrial()
+        }, remainingTime)
       } else {
-        // 如果间隔定时器已经结束（说明是在间隔时间之后响应的，但这种情况不应该发生）
-        // 或者响应超时，直接开始下一个试验
+        // 如果已经超过总时间，立即开始下一个试验
+        this.isShowingGrating = false
+        if (this.displayTimer) {
+          clearTimeout(this.displayTimer)
+          this.displayTimer = null
+        }
         setTimeout(() => this.nextTrial(), 100)
       }
     },
@@ -445,14 +595,27 @@ export const useRunStore = defineStore('run', {
     },
     
     checkReversal(isCorrect){
+      // Reversal 判断逻辑：
+      // - 正确 → 对比度下降 → 'down' 趋势
+      // - 错误 → 对比度上升 → 'up' 趋势
+      // - 当趋势从 'down' 变为 'up' 或从 'up' 变为 'down' 时，发生一次 reversal
       const currentTrend = isCorrect ? 'down' : 'up'
       let isReversal = false
       
-      if(this.lastDirection && this.lastDirection !== currentTrend){
+      // 只有当 lastDirection 存在且与当前趋势不同时，才发生 reversal
+      if(this.lastDirection !== null && this.lastDirection !== currentTrend){
         this.reversalCount++
         isReversal = true
-        console.log(`[测试] Reversal #${this.reversalCount} - 趋势: ${this.lastDirection} → ${currentTrend}`)
+        console.log(`[测试] Reversal #${this.reversalCount} - 趋势变化: ${this.lastDirection} → ${currentTrend} (${isCorrect ? '正确→下降' : '错误→上升'})`)
+      } else if (this.lastDirection === null) {
+        // 第一次判断，记录初始趋势，不算 reversal
+        console.log(`[测试] 初始趋势: ${currentTrend} (${isCorrect ? '正确→下降' : '错误→上升'})`)
+      } else {
+        // 趋势未改变，不算 reversal
+        console.log(`[测试] 趋势未改变: ${currentTrend} (${isCorrect ? '正确→下降' : '错误→上升'}), 当前 reversal: ${this.reversalCount}`)
       }
+      
+      // 更新 lastDirection 为当前趋势
       this.lastDirection = currentTrend
       
       // 在最新的trial中标记reversal
@@ -721,6 +884,7 @@ export const useRunStore = defineStore('run', {
       this.isShowingGrating = false // 重置光栅显示状态
       this.currentContrastDirection = null // 重置对比度方向
       this.lastContrast = null // 重置上一个对比度
+      this.currentTrialProcessed = false // 重置处理标志
       this.clearTimers()
       console.log('[reset] All state cleared, moduleResults length:', this.moduleResults.length)
     }

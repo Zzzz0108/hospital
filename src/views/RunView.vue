@@ -40,8 +40,8 @@
       <div class="canvas-container">
         <RunCanvas />
       </div>
-    </div>
-
+      </div>
+      
     <!-- 模块间隔阶段 -->
     <div v-if="runStore.phase === 'moduleGap'" class="test-background" :style="{ backgroundColor: `rgb(${testsStore.basic?.bgRgb || '128,128,128'})` }">
       <div class="test-info-text">
@@ -49,7 +49,7 @@
         <p>准备下一个模块...</p>
       </div>
       <div class="canvas-container">
-        <RunCanvas />
+      <RunCanvas />
       </div>
     </div>
 
@@ -111,7 +111,7 @@ const handleKeyPress = (e) => {
       if (!runStore.currentSessionId && runStore.moduleResults.length > 0) {
         runStore.finishTest()
       } else {
-        runStore.phase = 'end'
+      runStore.phase = 'end'
       }
     } else {
       const mode = runStore.currentTest?.basic?.mode || 'auto'
@@ -121,15 +121,15 @@ const handleKeyPress = (e) => {
         if (['KeyW', 'KeyS', 'KeyA', 'KeyD'].includes(e.code)) {
           e.preventDefault()
           runStore.handleDoctorControl(e.code)
-        } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
-          e.preventDefault()
-          const keyMap = {
-            'ArrowUp': 'up',
-            'ArrowDown': 'down',
-            'ArrowLeft': 'left',
-            'ArrowRight': 'right'
-          }
-          runStore.handleKeyPress(keyMap[e.code])
+    } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+      e.preventDefault()
+      const keyMap = {
+        'ArrowUp': 'up',
+        'ArrowDown': 'down',
+        'ArrowLeft': 'left',
+        'ArrowRight': 'right'
+      }
+      runStore.handleKeyPress(keyMap[e.code])
         }
       } else {
         // 自动模式：只有方向键是患者判断
