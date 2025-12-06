@@ -87,7 +87,7 @@ export const useTestsStore = defineStore('tests', {
         moduleGapSec: template.module_gap_sec || 1,
         order: template.module_order || 'ordered',
         resultReversalN: template.result_reversalN || 6,
-        showParams: template.show_params !== undefined ? template.show_params : true,
+        showParams: template.show_params !== undefined ? (template.show_params === 1 || template.show_params === true) : true,
         mode: template.mode || 'auto',
       }
       // 加载模块

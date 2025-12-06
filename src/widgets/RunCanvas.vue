@@ -36,47 +36,40 @@ const bgRgb = computed(() => {
   }
 })
 
-function draw(ctx, w, h, timeSec){
-  // 背景
-  ctx.fillStyle = `rgb(${bgRgb.value.r},${bgRgb.value.g},${bgRgb.value.b})`
-  ctx.fillRect(0, 0, w, h)
+function draw(ctx, actualSize, timeSec){
+  // 如果是模块间隔期间，不绘制光栅
+  if (runStore.phase === 'moduleGap') {
+    // 清空 canvas
+    ctx.clearRect(0, 0, actualSize, actualSize)
+    return
+  }
 
-  // -------- 1. 计算正方形宽度（像素） ----------
-  // 测试距离 D（cm），光栅大小 theta（deg），屏幕物理宽度 screenW（cm）
-  const D = Number(basic.value.distanceCm || 60)          // 测试距离
-  const thetaDeg = Number(basic.value.gratingSizeDeg || 5) // 光栅大小（视角）
-  const screenWcm = Number(basic.value.screenW || 50)     // 屏幕物理宽度
-
-  // 屏幕整体视角（deg）：2 * atan((screenW/2)/D)
-  const screenWidthRad = 2 * Math.atan((screenWcm / 2) / D)
-  const screenWidthDeg = screenWidthRad * 180 / Math.PI
-
-  // 每度视角对应的像素数（假设像素横向均匀）
-  const pixPerDeg = screenWidthDeg > 0 ? w / screenWidthDeg : w / 60 // 兜底 60deg
-
-  // 光栅宽度（deg）→ 像素： Wpx = thetaDeg * pixPerDeg
-  let size = thetaDeg * pixPerDeg
-  // 防止过大/过小：限制在窗口短边的 10%~90% 之间
-  const maxSize = Math.min(w, h) * 0.9
-  const minSize = Math.min(w, h) * 0.1
-  size = Math.max(minSize, Math.min(maxSize, size))
-  size = Math.floor(size)
-
-  const x0 = (w - size) / 2
-  const y0 = (h - size) / 2
+  // canvas 尺寸等于光栅尺寸，所以从 (0, 0) 开始绘制，填满整个 canvas
+  const x0 = 0
+  const y0 = 0
 
   const sf = spatialFreq.value || 1
   const tf = temporalFreq.value || 0
   const c = contrast.value
 
-  const imageData = ctx.createImageData(size, size)
+  // 计算每度视角对应的像素数（用于视角坐标转换）
+  const distanceCm = Number(basic.value.distanceCm || 60)
+  const screenWcm = Number(basic.value.screenW || 50)
+  const screenWidthRad = 2 * Math.atan((screenWcm / 2) / distanceCm)
+  const screenWidthDeg = screenWidthRad * 180 / Math.PI
+  // 使用窗口宽度来计算像素密度
+  const screenWpx = window.innerWidth
+  const pixPerDeg = screenWidthDeg > 0 ? screenWpx / screenWidthDeg : screenWpx / 60
+
+  // 使用实际像素尺寸创建图像数据
+  const imageData = ctx.createImageData(actualSize, actualSize)
   const data = imageData.data
 
-  for (let py = 0; py < size; py++) {
-    for (let px = 0; px < size; px++) {
+  for (let py = 0; py < actualSize; py++) {
+    for (let px = 0; px < actualSize; px++) {
       // 像素坐标（相对于正方形中心）
-      const xPix = px - size / 2
-      const yPix = py - size / 2
+      const xPix = px - actualSize / 2
+      const yPix = py - actualSize / 2
 
       // 转为视角坐标（deg）
       const xDeg = xPix / pixPerDeg
@@ -105,7 +98,7 @@ function draw(ctx, w, h, timeSec){
       const base = 0.5 + 0.5 * Math.sin(phase) * c
       const gray = Math.max(0, Math.min(255, Math.round(base * 255)))
 
-      const idx = (py * size + px) * 4
+      const idx = (py * actualSize + px) * 4
       data[idx] = gray
       data[idx + 1] = gray
       data[idx + 2] = gray
@@ -113,41 +106,59 @@ function draw(ctx, w, h, timeSec){
     }
   }
 
+  // 光栅绘制在 canvas 的 (0, 0) 位置，填满整个 canvas
+  // putImageData 不受 transform 影响，直接绘制到实际像素
   ctx.putImageData(imageData, x0, y0)
-  
-  // 显示提示信息
-  ctx.fillStyle = '#222'
-  ctx.font = '20px system-ui'
-  ctx.textAlign = 'center'
-  ctx.fillText('请判断光栅运动方向，按相应方向键：', w/2, h*0.15)
-  
-  ctx.font = '16px system-ui'
-  ctx.fillText('↑ 上  ↓ 下  ← 左  → 右', w/2, h*0.2)
-  
-  // 参数显示（如果配置显示）
-  if(basic.value.showParams){
-    ctx.font = '16px system-ui'
-    ctx.textAlign = 'left'
-    ctx.fillText(`空间频率: ${spatialFreq.value} c/d`, w*0.1, h*0.85)
-    ctx.fillText(`时间频率: ${temporalFreq.value} Hz`, w*0.4, h*0.85)
-    ctx.fillText(`对比度: ${(contrast.value * 100).toFixed(1)}%`, w*0.7, h*0.85)
-  }
 }
 
 function loop(){
   const c = canvasRef.value
-  if(!c || runStore.phase !== 'canvas') return
+  // 在 canvas 和 moduleGap 阶段都绘制
+  if(!c || (runStore.phase !== 'canvas' && runStore.phase !== 'moduleGap')) return
   
   const dpr = Math.max(1, window.devicePixelRatio || 1)
-  const rect = c.getBoundingClientRect()
-  c.width = rect.width * dpr
-  c.height = rect.height * dpr
+  
+  // -------- 计算光栅正方形宽度（像素） ----------
+  // 根据公式：宽度 = 2 * 测试距离 * tan(光栅大小/2)
+  const distanceCm = Number(basic.value.distanceCm || 60)          // 测试距离（cm）
+  const gratingSizeDeg = Number(basic.value.gratingSizeDeg || 5)    // 光栅大小（度）
+  const screenWcm = Number(basic.value.screenW || 50)              // 屏幕物理宽度（cm）
+  
+  // 光栅物理宽度（cm）：2 * distanceCm * tan(gratingSizeDeg / 2)
+  const gratingSizeRad = (gratingSizeDeg / 2) * Math.PI / 180  // 转换为弧度
+  const gratingSizeCm = 2 * distanceCm * Math.tan(gratingSizeRad)
+  
+  // 屏幕像素宽度（px），屏幕物理宽度 screenWcm（cm）
+  // 像素密度 = screenWpx / screenWcm (px/cm)
+  const screenWpx = window.innerWidth
+  const pixelsPerCm = screenWpx / screenWcm
+  
+  // 光栅像素宽度 = 光栅物理宽度 * 像素密度
+  let size = gratingSizeCm * pixelsPerCm
+  
+  // 防止过大/过小：限制在窗口短边的 10%~90% 之间
+  const maxSize = Math.min(window.innerWidth, window.innerHeight) * 0.9
+  const minSize = Math.min(window.innerWidth, window.innerHeight) * 0.1
+  size = Math.max(minSize, Math.min(maxSize, size))
+  size = Math.floor(size)
+  
+  // Canvas 尺寸等于光栅尺寸（光栅填满整个 canvas）
+  // 设置 canvas 的实际像素尺寸（考虑设备像素比）
+  c.width = size * dpr
+  c.height = size * dpr
+  
+  // 设置 canvas 的显示尺寸为光栅尺寸
+  c.style.width = size + 'px'
+  c.style.height = size + 'px'
+  
   const ctx = c.getContext('2d')
-  // 重置变换矩阵，避免多次累积缩放导致绘制区域跑飞
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-
+  // 注意：putImageData 不受 transform 影响，所以我们需要直接使用实际像素尺寸
+  // 不使用 setTransform，而是直接使用实际像素尺寸绘制
+  
   const now = performance.now() / 1000 // 秒
-  draw(ctx, rect.width, rect.height, now)
+  // 使用实际像素尺寸绘制，确保光栅填满整个 canvas
+  const actualSize = size * dpr
+  draw(ctx, actualSize, now)
 
   rafId = requestAnimationFrame(loop)
 }
@@ -162,9 +173,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <canvas ref="canvasRef" style="width:100vw;height:100vh;display:block;"></canvas>
+  <canvas ref="canvasRef" class="grating-canvas"></canvas>
 </template>
 
-<style scoped></style>
+<style scoped>
+.grating-canvas {
+  display: block;
+  /* canvas 尺寸会根据光栅大小动态设置，这里不需要固定尺寸 */
+}
+</style>
 
 

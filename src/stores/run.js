@@ -4,7 +4,7 @@ import { usePatientsStore } from './patients'
 
 export const useRunStore = defineStore('run', {
   state: () => ({
-    phase: 'ready', // ready, guide, canvas, end
+    phase: 'ready', // ready, guide, canvas, moduleGap, end
     currentTest: null, // 当前测试方案
     currentModuleIndex: 0, // 当前模块索引
     currentModule: null, // 当前模块
@@ -64,19 +64,27 @@ export const useRunStore = defineStore('run', {
       this.moduleOrder = JSON.parse(JSON.stringify(tests.moduleOrder))
       this.currentTrial = 0
       this.currentContrast = 50
+      this.currentDirection = 'up'
       this.correctCount = 0
       this.wrongCount = 0
       this.reversalCount = 0
       this.lastDirection = null
       this.trials = []
-      this.moduleResults = [] // 确保清空之前的结果
+      // moduleResults 已经在 reset() 中清空，这里再次确认
+      if (this.moduleResults.length > 0) {
+        console.warn(`[start] moduleResults not empty after reset, clearing again. Length: ${this.moduleResults.length}`)
+        this.moduleResults = []
+      }
       this.startTime = null
-      this.currentSessionId = null // 清空之前的会话ID
+      // currentSessionId 已经在 reset() 中清空，这里再次确认
+      if (this.currentSessionId) {
+        console.warn(`[start] currentSessionId not null after reset, clearing again. ID: ${this.currentSessionId}`)
+        this.currentSessionId = null
+      }
       this.isFinishing = false
       this.isFinishingModule = false
-      this.clearTimers()
 
-      console.log(`[start] Starting new test with ${this.moduleOrder.length} module(s)`)
+      console.log(`[start] Starting new test with ${this.moduleOrder.length} module(s), moduleResults cleared (length: ${this.moduleResults.length})`)
       console.log(`[start] Module order:`, this.moduleOrder.map((m, i) => `Module ${i}: spatial=${m.spatial}, temporal=${m.temporal}`))
       this.startModule()
     },
@@ -137,6 +145,11 @@ export const useRunStore = defineStore('run', {
       this.trials = [] // 清空当前模块的试验记录
       this.startTime = Date.now()
       this.isFinishingModule = false // 确保标志已重置
+      
+      // 如果是从模块间隔时间后启动的，设置 phase 为 canvas
+      if (this.phase === 'moduleGap') {
+        this.phase = 'canvas'
+      }
     },
     
     startCanvas(){
@@ -229,15 +242,19 @@ export const useRunStore = defineStore('run', {
         return
       }
       
-      // 显示光栅 duration 秒
+      // 记录显示开始时间
+      const displayStartTime = Date.now()
+      
+      // 显示光栅 duration 秒（持续时间）
       this.displayTimer = setTimeout(() => {
         this.hideGrating()
       }, this.currentModule.duration * 1000)
       
-      // 2秒响应超时
+      // 响应超时：持续时间 + 间隔时间（患者需要在这个总时间段内做出判断）
+      const totalResponseTime = (this.currentModule.duration + this.currentModule.interval) * 1000
       this.responseTimer = setTimeout(() => {
         this.handleTimeout()
-      }, 2000)
+      }, totalResponseTime)
     },
     
     hideGrating(){
@@ -246,24 +263,35 @@ export const useRunStore = defineStore('run', {
         console.warn('[hideGrating] No current module, skipping')
         return
       }
-      // 隐藏光栅 interval 秒
-      this.intervalTimer = setTimeout(() => {
-        this.nextTrial()
-      }, this.currentModule.interval * 1000)
+      
+      // 隐藏光栅（但患者仍然可以在间隔时间内响应）
+      // 注意：不在 hideGrating 中自动开始下一个试验
+      // 下一个试验会在患者响应（handleKeyPress）或超时（handleTimeout）后开始
+      // 响应超时定时器已经在 startDisplay 中设置（持续时间 + 间隔时间）
     },
     
     handleTimeout(){
-      // 2秒内未响应，判定为错误
+      // 在持续时间 + 间隔时间内未响应，判定为错误
+      // 清除所有定时器
+      this.clearTimers()
+      // 处理超时响应
       this.handleKeyPress('timeout')
     },
     
     handleKeyPress(key){
+      // 只在 canvas 阶段响应输入，模块间隔期间不响应
       if(this.phase !== 'canvas') return
       
       // 检查是否有当前模块（可能在 finishModule 中被清除了）
       if (!this.currentModule) {
         console.warn('[handleKeyPress] No current module, skipping')
         return
+      }
+      
+      // 清除响应超时定时器
+      if (this.responseTimer) {
+        clearTimeout(this.responseTimer)
+        this.responseTimer = null
       }
       
       const isCorrect = key === this.currentDirection
@@ -299,10 +327,17 @@ export const useRunStore = defineStore('run', {
       // 调整对比度
       this.adjustContrast(isCorrect)
       
-      // 清除定时器
-      this.clearTimers()
+      // 清除显示和间隔定时器（如果还在运行）
+      if (this.displayTimer) {
+        clearTimeout(this.displayTimer)
+        this.displayTimer = null
+      }
+      if (this.intervalTimer) {
+        clearTimeout(this.intervalTimer)
+        this.intervalTimer = null
+      }
       
-      // 继续下一试验
+      // 继续下一个试验（延迟一小段时间，确保状态已更新）
       setTimeout(() => this.nextTrial(), 500)
     },
     
@@ -471,6 +506,9 @@ export const useRunStore = defineStore('run', {
       const gapSec = this.currentTest?.basic?.moduleGapSec || 1
       console.log(`[finishModule] Module ${oldModuleIndex + 1} finished, will start module ${this.currentModuleIndex + 1} after ${gapSec}s`)
       
+      // 设置 phase 为 moduleGap，在模块间隔期间不显示光栅，不响应输入
+      this.phase = 'moduleGap'
+      
       // 设置模块间隔定时器
       this.moduleGapTimer = setTimeout(() => {
         this.moduleGapTimer = null
@@ -578,16 +616,19 @@ export const useRunStore = defineStore('run', {
       this.moduleOrder = []
       this.currentTrial = 0
       this.currentContrast = 50
+      this.currentDirection = 'up'
       this.correctCount = 0
       this.wrongCount = 0
       this.reversalCount = 0
+      this.lastDirection = null
       this.trials = []
-      this.moduleResults = []
+      this.moduleResults = [] // 确保清空之前的结果
       this.startTime = null
-      this.currentSessionId = null
+      this.currentSessionId = null // 确保清空之前的会话ID
       this.isFinishing = false
       this.isFinishingModule = false
       this.clearTimers()
+      console.log('[reset] All state cleared, moduleResults length:', this.moduleResults.length)
     }
   }
 })

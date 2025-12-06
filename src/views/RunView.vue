@@ -25,14 +25,32 @@
     </div>
 
     <!-- 测试阶段 -->
-    <div v-if="runStore.phase === 'canvas'" class="phase-content">
-      <div class="test-header">
+    <div v-if="runStore.phase === 'canvas'" class="test-background" :style="{ backgroundColor: `rgb(${testsStore.basic?.bgRgb || '128,128,128'})` }">
+      <div class="test-info-text">
         <h3>模块 {{ runStore.currentModuleIndex + 1 }} / {{ runStore.moduleOrder.length }}</h3>
         <p>当前对比度: {{ Number(runStore.currentContrast || 0).toFixed(1) }}% | 试验: {{ runStore.currentTrial }}</p>
         <p>Reversal: {{ runStore.reversalCount }} / {{ runStore.currentModule?.reversal }}</p>
+        <p class="instruction-text">请判断光栅运动方向，按相应方向键：↑ 上  ↓ 下  ← 左  → 右</p>
+        <p v-if="testsStore.basic?.showParams" class="params-text">
+          空间频率: {{ runStore.currentModule?.spatial }} c/d | 
+          时间频率: {{ runStore.currentModule?.temporal }} Hz | 
+          对比度: {{ Number(runStore.currentContrast || 0).toFixed(1) }}%
+        </p>
       </div>
-      
-      <RunCanvas />
+      <div class="canvas-container">
+        <RunCanvas />
+      </div>
+    </div>
+
+    <!-- 模块间隔阶段 -->
+    <div v-if="runStore.phase === 'moduleGap'" class="test-background" :style="{ backgroundColor: `rgb(${testsStore.basic?.bgRgb || '128,128,128'})` }">
+      <div class="test-info-text">
+        <h3>模块 {{ runStore.currentModuleIndex + 1 }} / {{ runStore.moduleOrder.length }} 已完成</h3>
+        <p>准备下一个模块...</p>
+      </div>
+      <div class="canvas-container">
+        <RunCanvas />
+      </div>
     </div>
 
     <!-- 结束阶段 -->
@@ -202,6 +220,60 @@ onUnmounted(() => {
 .test-header p {
   margin: 5px 0;
   font-size: 14px;
+}
+
+.test-background {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+.test-info-text {
+  width: 100%;
+  text-align: center;
+  color: #222;
+  z-index: 10;
+  background: rgba(240, 249, 255, 0.9);
+  padding: 15px 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.test-info-text h3 {
+  margin: 0 0 10px 0;
+  color: #1890ff;
+  font-size: 18px;
+}
+
+.test-info-text p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+.instruction-text {
+  font-weight: bold;
+  margin-top: 10px !important;
+}
+
+.params-text {
+  margin-top: 10px !important;
+  font-size: 12px !important;
+  color: #666;
+}
+
+.canvas-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  flex: 1;
+  padding: 20px 0;
 }
 
 .instructions {

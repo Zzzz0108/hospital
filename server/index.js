@@ -186,10 +186,10 @@ app.post('/api/test-templates', async (req, res) => {
        grating_gray, avg_luminance, distance_cm, screen_w_cm, screen_h_cm, module_gap_sec, 
        module_order, result_reversalN, show_params, mode, is_default) 
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [name, bgRgb || '128,128,128', bgLuminance || 50, gratingSizeDeg || 5, 
+       [name, bgRgb || '128,128,128', bgLuminance || 50, gratingSizeDeg || 5, 
        orientation || 'vertical', gratingGray || 128, avgLuminance || 50,
        distanceCm || 60, screenW || 50, screenH || 30, moduleGapSec || 1,
-       order || 'ordered', resultReversalN || 6, showParams !== undefined ? showParams : 1,
+       order || 'ordered', resultReversalN || 6, showParams === true || showParams === 1 ? 1 : 0,
        mode || 'auto', isDefault ? 1 : 0]
     )
     
@@ -237,7 +237,8 @@ app.put('/api/test-templates/:id', async (req, res) => {
        screen_h_cm = ?, module_gap_sec = ?, module_order = ?, result_reversalN = ?, 
        show_params = ?, mode = ?, is_default = ? WHERE id = ?`,
       [name, bgRgb, bgLuminance, gratingSizeDeg, orientation, gratingGray, avgLuminance,
-       distanceCm, screenW, screenH, moduleGapSec, order, resultReversalN, showParams, mode,
+       distanceCm, screenW, screenH, moduleGapSec, order, resultReversalN, 
+       showParams === true || showParams === 1 ? 1 : 0, mode,
        isDefault ? 1 : 0, id]
     )
     

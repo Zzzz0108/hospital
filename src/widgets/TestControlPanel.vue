@@ -53,15 +53,19 @@ watch(() => patientsStore.selectedId, async (newId) => {
 
     <div style="border:1px solid #ddd;padding:8px;">
       <h4 style="margin:0 0 8px 0;text-align:center;">已完成测试</h4>
-      <table border="1" cellspacing="0" cellpadding="6" style="width:100%;border-collapse:collapse;">
-        <thead><tr><th>序号</th><th>时间</th><th>模式</th><th>眼别</th><th>导出</th></tr></thead>
-        <tbody>
-          <tr v-for="(r,i) in store.results" :key="r.id">
-            <td>{{i+1}}</td><td>{{r.time}}</td><td>{{r.mode}}</td><td>{{r.eye}}</td>
-            <td><button @click="() => store.exportOne(r.id)">导出</button></td>
-          </tr>
-        </tbody>
-      </table>
+      <div style="max-height:300px;overflow-y:auto;overflow-x:auto;">
+        <table border="1" cellspacing="0" cellpadding="6" style="width:100%;border-collapse:collapse;">
+          <thead style="position:sticky;top:0;background:#f5f5f5;z-index:1;">
+            <tr><th>序号</th><th>时间</th><th>模式</th><th>眼别</th><th>导出</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="(r,i) in store.results" :key="r.id">
+              <td>{{i+1}}</td><td>{{r.time}}</td><td>{{r.mode}}</td><td>{{r.eye}}</td>
+              <td><button @click="() => store.exportOne(r.id)">导出</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </template>
