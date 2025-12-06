@@ -12,10 +12,12 @@ export const useRunStore = defineStore('run', {
     currentTrial: 0,
     currentContrast: 50,
     currentDirection: 'up', // up, down, left, right
+    currentContrastDirection: null, // 当前对比度下的方向（保持不变直到对比度改变）
     correctCount: 0,
     wrongCount: 0,
     reversalCount: 0,
     lastDirection: null, // 用于检测 reversal
+    lastContrast: null, // 上一个对比度值（用于检测对比度是否改变）
     trials: [], // 记录每次试验
     moduleResults: [], // 每个模块的结果
     startTime: null,
@@ -26,6 +28,7 @@ export const useRunStore = defineStore('run', {
     currentSessionId: null, // 当前测试会话ID（保存后）
     isFinishing: false, // 防止 finishTest 被多次调用
     isFinishingModule: false, // 防止 finishModule 被多次调用
+    isShowingGrating: false, // 是否正在显示光栅（用于控制 RunCanvas 的绘制）
   }),
   getters: {
     isModuleComplete(){
@@ -65,6 +68,8 @@ export const useRunStore = defineStore('run', {
       this.currentTrial = 0
       this.currentContrast = 50
       this.currentDirection = 'up'
+      this.currentContrastDirection = null
+      this.lastContrast = null
       this.correctCount = 0
       this.wrongCount = 0
       this.reversalCount = 0
@@ -136,24 +141,40 @@ export const useRunStore = defineStore('run', {
       console.log(`[startModule] Module params: spatial=${this.currentModule.spatial}, temporal=${this.currentModule.temporal}, reversal=${this.currentModule.reversal}`)
       
       // 重置当前模块的状态
-      this.currentContrast = this.currentModule.initialContrast
+      this.currentContrast = Number(this.currentModule.initialContrast) || 50
       this.currentTrial = 0
       this.correctCount = 0
       this.wrongCount = 0
       this.reversalCount = 0
       this.lastDirection = null
+      this.currentContrastDirection = null
+      this.lastContrast = null
       this.trials = [] // 清空当前模块的试验记录
       this.startTime = Date.now()
       this.isFinishingModule = false // 确保标志已重置
       
-      // 如果是从模块间隔时间后启动的，设置 phase 为 canvas
+      // 如果是从模块间隔时间后启动的，设置 phase 为 canvas（但不自动开始测试）
       if (this.phase === 'moduleGap') {
         this.phase = 'canvas'
       }
+      
+      // 注意：这里不自动调用 nextTrial()，等待用户点击"开始测试"按钮或按空格键
+      // 只有在 startCanvas() 中才会调用 nextTrial()
     },
     
     startCanvas(){
+      // 确保当前模块已初始化
+      if (!this.currentModule) {
+        console.warn('[startCanvas] No current module, initializing...')
+        this.startModule()
+      }
+      
+      // 确保 phase 是 canvas
       this.phase = 'canvas'
+      
+      console.log('[startCanvas] 用户点击开始测试，开始第一个试验')
+      
+      // 开始第一个试验
       this.nextTrial()
     },
     
@@ -176,11 +197,12 @@ export const useRunStore = defineStore('run', {
         return
       }
       
+      // 检查模块是否完成（在增加试验次数之前检查）
       if(this.isModuleComplete){
         // 确保只调用一次 finishModule
         const alreadyFinished = this.moduleResults.some(r => r.moduleIndex === this.currentModuleIndex)
         if (!alreadyFinished && !this.isFinishingModule) {
-          console.log(`[nextTrial] Module ${this.currentModuleIndex} complete, calling finishModule`)
+          console.log(`[nextTrial] Module ${this.currentModuleIndex} complete (reversal: ${this.reversalCount}/${this.currentModule.reversal}), calling finishModule`)
           // 清除所有定时器，防止在 finishModule 过程中继续触发
           this.clearTimers()
           this.finishModule()
@@ -191,7 +213,29 @@ export const useRunStore = defineStore('run', {
       }
       
       this.currentTrial++
-      this.currentDirection = this.getRandomDirection()
+      console.log(`[nextTrial] 开始试验 ${this.currentTrial} (reversal: ${this.reversalCount}/${this.currentModule.reversal})`)
+      
+      // 确保 currentContrast 是数字
+      this.currentContrast = Number(this.currentContrast) || 50
+      
+      // 如果对比度改变了，重新随机选择方向；否则保持当前方向
+      if (this.lastContrast !== this.currentContrast) {
+        this.currentDirection = this.getRandomDirection()
+        this.currentContrastDirection = this.currentDirection
+        this.lastContrast = this.currentContrast
+      } else {
+        // 对比度未改变，保持当前方向
+        this.currentDirection = this.currentContrastDirection || this.getRandomDirection()
+      }
+      
+      // 防止无限循环：如果试验次数过多，强制结束模块
+      if (this.currentTrial > 200) {
+        console.error(`[nextTrial] Trial count exceeded 200 (reversal: ${this.reversalCount}/${this.currentModule.reversal}), forcing module completion`)
+        this.clearTimers()
+        this.finishModule()
+        return
+      }
+      
       this.startDisplay()
     },
     
@@ -242,16 +286,23 @@ export const useRunStore = defineStore('run', {
         return
       }
       
-      // 记录显示开始时间
-      const displayStartTime = Date.now()
+      // 标记开始显示光栅
+      this.isShowingGrating = true
+      
+      const contrast = Number(this.currentContrast) || 50
+      const duration = Number(this.currentModule.duration) || 1
+      const interval = Number(this.currentModule.interval) || 1
+      
+      console.log(`[测试] 开始显示光栅 - 试验: ${this.currentTrial}, 对比度: ${contrast.toFixed(1)}%, 方向: ${this.currentDirection}, 持续时间: ${duration}s, 间隔时间: ${interval}s`)
       
       // 显示光栅 duration 秒（持续时间）
+      const durationMs = duration * 1000
       this.displayTimer = setTimeout(() => {
         this.hideGrating()
-      }, this.currentModule.duration * 1000)
+      }, durationMs)
       
       // 响应超时：持续时间 + 间隔时间（患者需要在这个总时间段内做出判断）
-      const totalResponseTime = (this.currentModule.duration + this.currentModule.interval) * 1000
+      const totalResponseTime = (duration + interval) * 1000
       this.responseTimer = setTimeout(() => {
         this.handleTimeout()
       }, totalResponseTime)
@@ -264,17 +315,42 @@ export const useRunStore = defineStore('run', {
         return
       }
       
-      // 隐藏光栅（但患者仍然可以在间隔时间内响应）
-      // 注意：不在 hideGrating 中自动开始下一个试验
-      // 下一个试验会在患者响应（handleKeyPress）或超时（handleTimeout）后开始
-      // 响应超时定时器已经在 startDisplay 中设置（持续时间 + 间隔时间）
+      // 清除显示定时器
+      if (this.displayTimer) {
+        clearTimeout(this.displayTimer)
+        this.displayTimer = null
+      }
+      
+      // 标记隐藏光栅（进入间隔时间）
+      this.isShowingGrating = false
+      
+      const interval = Number(this.currentModule.interval) || 1
+      console.log(`[测试] 隐藏光栅 - 间隔时间: ${interval}s`)
+      
+      // 隐藏光栅后，等待 interval 秒（间隔时间），然后开始下一个试验
+      // 注意：如果患者在间隔时间内响应了，会在 handleKeyPress 中清除这个定时器
+      const intervalMs = interval * 1000
+      this.intervalTimer = setTimeout(() => {
+        this.intervalTimer = null
+        // 间隔时间结束，开始下一个试验
+        console.log(`[测试] 间隔时间结束，开始下一个试验`)
+        this.nextTrial()
+      }, intervalMs)
     },
     
     handleTimeout(){
       // 在持续时间 + 间隔时间内未响应，判定为错误
-      // 清除所有定时器
-      this.clearTimers()
-      // 处理超时响应
+      // 清除响应超时定时器
+      if (this.responseTimer) {
+        clearTimeout(this.responseTimer)
+        this.responseTimer = null
+      }
+      // 如果间隔定时器还在运行，清除它（因为超时了，不需要等待间隔时间）
+      if (this.intervalTimer) {
+        clearTimeout(this.intervalTimer)
+        this.intervalTimer = null
+      }
+      // 处理超时响应（会记录错误，调整对比度，然后开始下一个试验）
       this.handleKeyPress('timeout')
     },
     
@@ -296,6 +372,8 @@ export const useRunStore = defineStore('run', {
       
       const isCorrect = key === this.currentDirection
       const responseTime = Date.now() - this.startTime
+      
+      console.log(`[测试] 患者响应 - 按键: ${key}, 正确方向: ${this.currentDirection}, 判断: ${isCorrect ? '正确' : '错误'}`)
       
       // 记录试验
       const trial = {
@@ -327,18 +405,24 @@ export const useRunStore = defineStore('run', {
       // 调整对比度
       this.adjustContrast(isCorrect)
       
-      // 清除显示和间隔定时器（如果还在运行）
+      // 清除显示定时器（如果还在运行）
       if (this.displayTimer) {
         clearTimeout(this.displayTimer)
         this.displayTimer = null
       }
+      
+      // 如果间隔定时器还在运行，说明患者在间隔时间内响应了
+      // 清除间隔定时器，立即开始下一个试验（不等待剩余的间隔时间）
       if (this.intervalTimer) {
         clearTimeout(this.intervalTimer)
         this.intervalTimer = null
+        // 立即开始下一个试验
+        setTimeout(() => this.nextTrial(), 100)
+      } else {
+        // 如果间隔定时器已经结束（说明是在间隔时间之后响应的，但这种情况不应该发生）
+        // 或者响应超时，直接开始下一个试验
+        setTimeout(() => this.nextTrial(), 100)
       }
-      
-      // 继续下一个试验（延迟一小段时间，确保状态已更新）
-      setTimeout(() => this.nextTrial(), 500)
     },
     
     clearTimers(){
@@ -367,6 +451,7 @@ export const useRunStore = defineStore('run', {
       if(this.lastDirection && this.lastDirection !== currentTrend){
         this.reversalCount++
         isReversal = true
+        console.log(`[测试] Reversal #${this.reversalCount} - 趋势: ${this.lastDirection} → ${currentTrend}`)
       }
       this.lastDirection = currentTrend
       
@@ -383,18 +468,24 @@ export const useRunStore = defineStore('run', {
         return
       }
       
+      // 确保 currentContrast 是数字
+      this.currentContrast = Number(this.currentContrast) || 50
+      const oldContrast = this.currentContrast
+      
       if(isCorrect && this.correctCount >= this.currentModule.down){
         // 判断正确：对比度下降（stepCorrect < 100）
         this.currentContrast *= (this.currentModule.stepCorrect / 100)
         this.correctCount = 0
+        console.log(`[测试] 对比度调整 - ${oldContrast.toFixed(1)}% → ${this.currentContrast.toFixed(1)}% (正确，下降)`)
       } else if(!isCorrect && this.wrongCount >= this.currentModule.up){
         // 判断错误：对比度上升（stepWrong > 100）
         this.currentContrast *= (this.currentModule.stepWrong / 100)
         this.wrongCount = 0
+        console.log(`[测试] 对比度调整 - ${oldContrast.toFixed(1)}% → ${this.currentContrast.toFixed(1)}% (错误，上升)`)
       }
       
-      // 限制对比度范围
-      this.currentContrast = Math.max(1, Math.min(100, this.currentContrast))
+      // 限制对比度范围，并确保是数字
+      this.currentContrast = Number(Math.max(1, Math.min(100, this.currentContrast)).toFixed(2))
     },
     
     finishModule(){
@@ -627,6 +718,9 @@ export const useRunStore = defineStore('run', {
       this.currentSessionId = null // 确保清空之前的会话ID
       this.isFinishing = false
       this.isFinishingModule = false
+      this.isShowingGrating = false // 重置光栅显示状态
+      this.currentContrastDirection = null // 重置对比度方向
+      this.lastContrast = null // 重置上一个对比度
       this.clearTimers()
       console.log('[reset] All state cleared, moduleResults length:', this.moduleResults.length)
     }

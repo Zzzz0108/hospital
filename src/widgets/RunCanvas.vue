@@ -46,6 +46,13 @@ function draw(ctx, actualSize, timeSec){
     ctx.clearRect(0, 0, actualSize, actualSize)
     return
   }
+  
+  // 如果在间隔时间内（光栅隐藏），不绘制光栅
+  if (!runStore.isShowingGrating) {
+    // 清空 canvas（显示背景色）
+    ctx.clearRect(0, 0, actualSize, actualSize)
+    return
+  }
 
   // canvas 尺寸等于光栅尺寸，所以从 (0, 0) 开始绘制，填满整个 canvas
   const x0 = 0
@@ -127,16 +134,6 @@ function loop(){
   const gratingSizeDeg = Number(basic.value.gratingSizeDeg || 5)    // 光栅大小（度）
   const screenWcm = Number(basic.value.screenW || 50)              // 屏幕物理宽度（cm）
   
-  // 调试：输出读取到的参数值
-  if (Math.random() < 0.01) { // 偶尔输出，避免刷屏
-    console.log('[RunCanvas] 读取的参数:', {
-      distanceCm,
-      gratingSizeDeg,
-      screenWcm,
-      basicValue: basic.value
-    })
-  }
-  
   // 光栅物理宽度（cm）：2 * distanceCm * tan(gratingSizeDeg / 2)
   const gratingSizeRad = (gratingSizeDeg / 2) * Math.PI / 180  // 转换为弧度
   const gratingSizeCm = 2 * distanceCm * Math.tan(gratingSizeRad)
@@ -149,24 +146,11 @@ function loop(){
   // 光栅像素宽度 = 光栅物理宽度 * 像素密度
   let size = gratingSizeCm * pixelsPerCm
   
-  // 调试：输出计算结果
-  if (Math.random() < 0.01) {
-    console.log('[RunCanvas] 计算结果:', {
-      gratingSizeCm: gratingSizeCm.toFixed(2) + 'cm',
-      pixelsPerCm: pixelsPerCm.toFixed(2) + 'px/cm',
-      calculatedSize: size.toFixed(2) + 'px',
-      screenWpx: screenWpx + 'px',
-      formula: `2 * ${distanceCm}cm * tan(${gratingSizeDeg}°/2) * ${pixelsPerCm.toFixed(2)}px/cm`
-    })
-  }
-  
   // 限制光栅大小：限制在窗口短边的 5%~95% 之间
   // 这样既能保证光栅可见，又能让不同参数产生明显区别
   const windowMin = Math.min(window.innerWidth, window.innerHeight)
   const maxSize = windowMin * 0.95  // 最大为窗口短边的 95%
   const minSize = windowMin * 0.05  // 最小为窗口短边的 5%
-  const sizeBeforeLimit = size
-  const wasLimited = size > maxSize || size < minSize
   
   if (size > maxSize) {
     size = maxSize
@@ -174,21 +158,6 @@ function loop(){
     size = minSize
   }
   size = Math.floor(size)
-  
-  // 调试：输出限制后的最终尺寸（尺寸变化时输出）
-  if (!window._lastGratingSize || Math.abs(window._lastGratingSize - size) > 1) {
-    console.log('[RunCanvas] 限制后的尺寸:', {
-      calculatedSize: sizeBeforeLimit.toFixed(2) + 'px',
-      maxSize: maxSize.toFixed(2) + 'px',
-      minSize: minSize.toFixed(2) + 'px',
-      finalSize: size + 'px',
-      windowSize: `${window.innerWidth}x${window.innerHeight}px`,
-      canvasDisplaySize: `${size}px x ${size}px`,
-      canvasActualSize: `${size * dpr}px x ${size * dpr}px (dpr=${dpr})`,
-      isLimited: wasLimited ? `是（${sizeBeforeLimit > maxSize ? '超过最大值' : '小于最小值'}）` : '否（未限制）'
-    })
-    window._lastGratingSize = size
-  }
   
   // Canvas 尺寸等于光栅尺寸（光栅填满整个 canvas）
   // 设置 canvas 的实际像素尺寸（考虑设备像素比）
