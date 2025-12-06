@@ -31,6 +31,7 @@ export const useRunStore = defineStore('run', {
     isFinishingModule: false, // 防止 finishModule 被多次调用
     isShowingGrating: false, // 是否正在显示光栅（用于控制 RunCanvas 的绘制）
     currentTrialProcessed: false, // 当前试验是否已经处理过响应（防止重复处理）
+    waitingForDoctor: false, // 手动模式下，是否在等待医生指令
   }),
   getters: {
     isModuleComplete(){
@@ -162,7 +163,16 @@ export const useRunStore = defineStore('run', {
         console.log(`[startModule] Module gap ended, auto-starting module ${this.currentModuleIndex + 1}`)
         // 延迟一小段时间，确保状态已更新
         setTimeout(() => {
-          this.nextTrial()
+          // 检查测试模式
+          const mode = this.currentTest?.basic?.mode || 'auto'
+          if(mode === 'manual'){
+            // 手动模式：等待医生按方向键
+            this.waitingForDoctor = true
+            console.log(`[手动模式] 等待医生按方向键（WASD）开始模块 ${this.currentModuleIndex + 1}`)
+          } else {
+            // 自动模式：自动开始
+            this.nextTrial()
+          }
         }, 100)
       }
       // 注意：如果是第一次启动（phase === 'guide'），不自动开始，等待用户点击"开始测试"按钮
@@ -225,8 +235,18 @@ export const useRunStore = defineStore('run', {
       // 确保 currentContrast 是数字
       this.currentContrast = Number(this.currentContrast) || 50
       
-      // 每次试验都随机选择方向（不管对错）
-      this.currentDirection = this.getRandomDirection()
+      // 检查测试模式
+      const mode = this.currentTest?.basic?.mode || 'auto'
+      
+      // 手动模式：如果医生已经设置了方向（waitingForDoctor 为 false），保持该方向；否则随机选择
+      // 自动模式：随机选择方向
+      if(mode === 'manual' && !this.waitingForDoctor && this.currentDirection){
+        // 医生已经设置了方向，保持该方向（不随机选择）
+        console.log(`[手动模式] 使用医生设置的方向: ${this.currentDirection}`)
+      } else {
+        // 自动模式或医生未设置方向，随机选择
+        this.currentDirection = this.getRandomDirection()
+      }
       
       // 更新 lastContrast（用于其他逻辑，但不影响方向选择）
       this.lastContrast = this.currentContrast
@@ -238,8 +258,22 @@ export const useRunStore = defineStore('run', {
         this.finishModule()
         return
       }
-      
-      this.startDisplay()
+      if(mode === 'manual'){
+        // 手动模式：如果医生已经设置了方向（waitingForDoctor = false），直接开始显示
+        // 否则等待医生按方向键
+        if(!this.waitingForDoctor && this.currentDirection){
+          // 医生已经设置了方向，直接开始显示
+          console.log(`[手动模式] 医生已设置方向: ${this.currentDirection}，开始显示试验 ${this.currentTrial}`)
+          this.startDisplay()
+        } else {
+          // 等待医生按方向键
+          this.waitingForDoctor = true
+          console.log(`[手动模式] 等待医生按方向键（WASD）开始试验 ${this.currentTrial}`)
+        }
+      } else {
+        // 自动模式：自动开始显示
+        this.startDisplay()
+      }
     },
     
     getRandomDirection(){
@@ -279,6 +313,24 @@ export const useRunStore = defineStore('run', {
       const direction = keyMap[key]
       if(direction){
         this.currentDirection = direction
+        console.log(`[手动模式] 医生设置方向: ${direction}`)
+        
+        // 如果正在等待医生指令
+        if(this.waitingForDoctor){
+          this.waitingForDoctor = false
+          
+          // 检查当前试验是否已经处理过（如果已处理，说明需要开始下一个试验）
+          if(this.currentTrialProcessed){
+            // 当前试验已处理，开始下一个试验
+            this.nextTrial()
+          } else {
+            // 当前试验还未开始，开始显示当前试验
+            this.startDisplay()
+          }
+        } else if(this.currentTrial === 0 && !this.isShowingGrating){
+          // 如果是第一个试验且光栅未显示，开始显示
+          this.startDisplay()
+        }
       }
     },
     
@@ -445,8 +497,17 @@ export const useRunStore = defineStore('run', {
         console.log(`[测试] 对比度未改变: ${contrastAfterAdjust.toFixed(1)}%`)
       }
       
-      // 超时后立即开始下一个试验
-      setTimeout(() => this.nextTrial(), 100)
+      // 检查测试模式
+      const mode = this.currentTest?.basic?.mode || 'auto'
+      
+      // 手动模式：等待医生按方向键
+      if(mode === 'manual'){
+        this.waitingForDoctor = true
+        console.log(`[手动模式] 等待医生按方向键（WASD）开始下一个试验`)
+      } else {
+        // 自动模式：自动开始下一个试验
+        setTimeout(() => this.nextTrial(), 100)
+      }
     },
     
     handleKeyPress(key){
@@ -548,6 +609,9 @@ export const useRunStore = defineStore('run', {
       const elapsedTime = Date.now() - (this.trialStartTime || this.startTime)
       const remainingTime = Math.max(0, totalTime - elapsedTime)
       
+      // 检查测试模式
+      const mode = this.currentTest?.basic?.mode || 'auto'
+      
       // 患者已响应，但需要等待整个试验周期（duration + interval）结束后再开始下一个试验
       // 如果患者在显示期间响应，等待剩余时间（包括隐藏光栅的时间）
       // 如果患者在间隔期间响应，等待剩余时间
@@ -561,17 +625,32 @@ export const useRunStore = defineStore('run', {
             clearTimeout(this.displayTimer)
             this.displayTimer = null
           }
-          // 开始下一个试验
-          this.nextTrial()
+          
+          // 手动模式：等待医生按方向键
+          if(mode === 'manual'){
+            this.waitingForDoctor = true
+            console.log(`[手动模式] 等待医生按方向键（WASD）开始下一个试验`)
+          } else {
+            // 自动模式：自动开始下一个试验
+            this.nextTrial()
+          }
         }, remainingTime)
       } else {
-        // 如果已经超过总时间，立即开始下一个试验
+        // 如果已经超过总时间，立即处理
         this.isShowingGrating = false
         if (this.displayTimer) {
           clearTimeout(this.displayTimer)
           this.displayTimer = null
         }
-        setTimeout(() => this.nextTrial(), 100)
+        
+        // 手动模式：等待医生按方向键
+        if(mode === 'manual'){
+          this.waitingForDoctor = true
+          console.log(`[手动模式] 等待医生按方向键（WASD）开始下一个试验`)
+        } else {
+          // 自动模式：自动开始下一个试验
+          setTimeout(() => this.nextTrial(), 100)
+        }
       }
     },
     
@@ -885,6 +964,7 @@ export const useRunStore = defineStore('run', {
       this.currentContrastDirection = null // 重置对比度方向
       this.lastContrast = null // 重置上一个对比度
       this.currentTrialProcessed = false // 重置处理标志
+      this.waitingForDoctor = false // 重置等待医生指令标志
       this.clearTimers()
       console.log('[reset] All state cleared, moduleResults length:', this.moduleResults.length)
     }
