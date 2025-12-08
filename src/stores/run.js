@@ -67,7 +67,23 @@ export const useRunStore = defineStore('run', {
       this.currentModuleIndex = 0
       this.currentModule = null
       // 深拷贝模块顺序，避免 getter 每次返回新数组导致的问题
-      this.moduleOrder = JSON.parse(JSON.stringify(tests.moduleOrder))
+      // 如果 order 是 random，需要在这里进行一次随机排序并固定
+      let moduleOrderArray
+      if (tests.basic.order === 'random') {
+        // 随机排序：使用 Fisher-Yates 洗牌算法
+        moduleOrderArray = [...tests.modules]
+        console.log(`[start] 开始随机排序，原始顺序:`, moduleOrderArray.map((m, i) => `[${i}] spatial=${m.spatial}, temporal=${m.temporal}`))
+        for (let i = moduleOrderArray.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [moduleOrderArray[i], moduleOrderArray[j]] = [moduleOrderArray[j], moduleOrderArray[i]]
+        }
+        console.log(`[start] 随机排序后:`, moduleOrderArray.map((m, i) => `[${i}] spatial=${m.spatial}, temporal=${m.temporal}`))
+      } else {
+        // 按序：直接使用原始顺序
+        moduleOrderArray = [...tests.modules]
+        console.log(`[start] 使用按序模块顺序`)
+      }
+      this.moduleOrder = JSON.parse(JSON.stringify(moduleOrderArray))
       this.currentTrial = 0
       this.currentContrast = 50
       this.currentDirection = 'up'
@@ -93,7 +109,9 @@ export const useRunStore = defineStore('run', {
       this.isFinishingModule = false
 
       console.log(`[start] Starting new test with ${this.moduleOrder.length} module(s), moduleResults cleared (length: ${this.moduleResults.length})`)
-      console.log(`[start] Module order:`, this.moduleOrder.map((m, i) => `Module ${i}: spatial=${m.spatial}, temporal=${m.temporal}`))
+      console.log(`[start] Module order (${tests.basic.order}):`, this.moduleOrder.map((m, i) => `[${i}] spatial=${m.spatial}, temporal=${m.temporal}`))
+      // 显示原始模块顺序用于对比
+      console.log(`[start] Original modules order:`, tests.modules.map((m, i) => `[${i}] spatial=${m.spatial}, temporal=${m.temporal}`))
       this.startModule()
     },
     

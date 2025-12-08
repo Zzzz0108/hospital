@@ -96,9 +96,14 @@ function draw(ctx, actualSize, timeSec){
         if (direction.value === 'left') motionSign = 1
         if (direction.value === 'right') motionSign = -1
       } else {
-        // 实测校正：让“up”视觉上向上漂，“down”向下漂
-        if (direction.value === 'up') motionSign = -1
-        if (direction.value === 'down') motionSign = 1
+        // 水平光栅：up/down 控制垂直方向
+        // 对于水平光栅（条纹沿 y 方向变化），相位 = 2π * sf * yDeg + 2π * tf * timeSec * motionSign
+        // 问题：当 direction='up' 时，图像实际向下移动，说明符号反了
+        // 当前：direction='up' → motionSign=-1，但图像向下
+        // 说明：motionSign=-1 时图像向下，motionSign=1 时图像向上
+        // 修正：交换符号，让 up 时 motionSign=1（向上），down 时 motionSign=-1（向下）
+        if (direction.value === 'up') motionSign = 1   // up 时向上移动
+        if (direction.value === 'down') motionSign = -1  // down 时向下移动
       }
 
       // 相位：2π * 空间频率(c/deg) * 视角坐标 + 2π * 时间频率 * 时间 * 方向符号

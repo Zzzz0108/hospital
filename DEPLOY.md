@@ -329,25 +329,146 @@ sudo tail -f /var/log/nginx/access.log
 - 检查 Nginx 代理配置
 - 检查防火墙和安全组设置
 
-## 十二、更新部署
+## 十二、更新部署（代码修改后的部署流程）
+
+### 重要说明
+**✅ 不会丢失的内容：**
+- 数据库中的所有数据（患者信息、测试模板、测试结果等）
+- MySQL 数据库配置
+- Nginx 配置文件
+- PM2 进程配置
+- 环境变量配置（`.env.production`、`server/.env` 等）
+
+**⚠️ 需要重新操作的内容：**
+- 前端代码修改后需要重新构建（`npm run build`）
+- 后端代码修改后需要重启 PM2（`pm2 restart hospital-backend`）
+- 如果修改了依赖包，需要重新安装（`npm install`）
+
+### 更新部署步骤
+
+#### 方法一：使用 Git（推荐，如果代码在 Git 仓库中）
 
 ```bash
-# 1. 拉取最新代码（如果使用 Git）
+# 1. 连接到服务器
+ssh root@your-server-ip
+
+# 2. 进入项目目录
 cd /var/www/hospital
+
+# 3. 拉取最新代码
 git pull
 
-# 2. 重新构建前端
+# 4. 安装/更新前端依赖（如果有新依赖）
 npm install
+
+# 5. 重新构建前端
 npm run build
 
-# 3. 更新后端依赖（如果需要）
+# 6. 更新后端依赖（如果有新依赖）
 cd server
 npm install
 
-# 4. 重启后端
+# 7. 重启后端服务
 pm2 restart hospital-backend
 
-# 5. 重载 Nginx
+# 8. 重载 Nginx（使前端更新生效）
 sudo systemctl reload nginx
+
+# 9. 检查服务状态
+pm2 status
+sudo systemctl status nginx
+```
+
+#### 方法二：手动上传文件（如果代码不在 Git 仓库中）
+
+```bash
+# 1. 在本地修改代码后，打包上传
+# 在本地执行：
+tar --exclude='node_modules' --exclude='.git' --exclude='dist' -czf hospital-update.tar.gz .
+
+# 2. 上传到服务器
+scp hospital-update.tar.gz root@your-server-ip:/tmp/
+
+# 3. 在服务器上解压并更新
+ssh root@your-server-ip
+cd /var/www/hospital
+
+# 备份当前代码（可选）
+cp -r . ../hospital-backup-$(date +%Y%m%d-%H%M%S)
+
+# 解压新代码（覆盖现有文件）
+tar -xzf /tmp/hospital-update.tar.gz
+
+# 4. 重新构建前端
+npm install  # 如果有新依赖
+npm run build
+
+# 5. 更新后端依赖（如果有新依赖）
+cd server
+npm install
+
+# 6. 重启后端服务
+pm2 restart hospital-backend
+
+# 7. 重载 Nginx
+sudo systemctl reload nginx
+```
+
+### 常见更新场景
+
+#### 场景 1：只修改了前端代码（Vue 组件、样式等）
+```bash
+cd /var/www/hospital
+npm run build
+sudo systemctl reload nginx
+```
+
+#### 场景 2：只修改了后端代码（API 逻辑等）
+```bash
+cd /var/www/hospital/server
+pm2 restart hospital-backend
+```
+
+#### 场景 3：修改了数据库结构或配置
+```bash
+# 1. 更新数据库（执行 SQL 迁移脚本）
+mysql -u hospital_user -p hospital_db < migration.sql
+
+# 2. 重启后端
+cd /var/www/hospital/server
+pm2 restart hospital-backend
+```
+
+#### 场景 4：修改了环境变量或配置文件
+```bash
+# 1. 修改配置文件（如 .env.production, server/.env）
+# 2. 重新构建前端（如果修改了前端环境变量）
+cd /var/www/hospital
+npm run build
+
+# 3. 重启后端（如果修改了后端环境变量）
+cd server
+pm2 restart hospital-backend
+
+# 4. 重载 Nginx（如果修改了 Nginx 配置）
+sudo nginx -t  # 先测试配置
+sudo systemctl reload nginx
+```
+
+### 验证更新是否成功
+
+```bash
+# 1. 检查后端服务
+pm2 status
+pm2 logs hospital-backend --lines 50
+
+# 2. 检查前端文件
+ls -lh /var/www/hospital/dist/assets/
+
+# 3. 检查 Nginx
+sudo systemctl status nginx
+curl http://localhost/api/patients  # 测试 API
+
+# 4. 在浏览器中访问网站，检查功能是否正常
 ```
 
