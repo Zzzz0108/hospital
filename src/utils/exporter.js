@@ -18,7 +18,8 @@ const setCellStyle = (cell) => {
 export async function exportTestResult(sessionId) {
   try {
     // 从后端获取完整数据
-    const res = await fetch(`http://localhost:3001/api/test-sessions/${sessionId}/export`)
+    const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:3001/api'
+    const res = await fetch(`${apiBase}/test-sessions/${sessionId}/export`)
     
     // 检查响应状态
     if (!res.ok) {

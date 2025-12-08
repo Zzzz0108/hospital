@@ -15,4 +15,9 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     },
   },
+  // 环境变量配置
+  define: {
+    // 可以在构建时通过环境变量设置 API 地址
+    // 例如：VITE_API_BASE=http://your-server-ip:3001/api npm run build
+  }
 })

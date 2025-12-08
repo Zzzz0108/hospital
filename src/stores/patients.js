@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
+import apiConfig from '../config/api'
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = apiConfig.API_BASE
 
 export const usePatientsStore = defineStore('patients', {
   state: () => ({

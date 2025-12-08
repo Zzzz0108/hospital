@@ -904,7 +904,7 @@ export const useRunStore = defineStore('run', {
           }))
         )
 
-        const res = await fetch('http://localhost:3001/api/test-sessions', {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE || 'http://localhost:3001/api'}/test-sessions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

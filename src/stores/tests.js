@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { usePatientsStore } from './patients'
 import { exportJsonToXlsx } from '../utils/exporter'
+import apiConfig from '../config/api'
 
-const API_BASE = 'http://localhost:3001/api'
+const API_BASE = apiConfig.API_BASE
 
 export const useTestsStore = defineStore('tests', {
   state: () => ({
