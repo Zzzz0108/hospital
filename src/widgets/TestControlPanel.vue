@@ -14,10 +14,10 @@ const loadTestResults = async () => {
   await store.loadResults(patientsStore.selectedId || null)
 }
 
-// 组件挂载时加载默认测试方案和所有测试结果
+// 组件挂载时加载测试方案列表、默认测试方案和所有测试结果
 onMounted(async () => {
+  await store.loadTestTemplates()
   await store.loadDefault()
-  // 初始化时加载所有测试结果（不传 patientId 表示加载所有）
   await loadTestResults()
 })
 
@@ -32,7 +32,20 @@ watch(() => patientsStore.selectedId, async (newId) => {
     <div style="margin-bottom:8px;">已选被试：{{store.currentPatientText}}</div>
     <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
       <span>测试名称</span>
-      <el-input :model-value="store.selectedTestName" readonly size="large" style="max-width:320px;" />
+      <el-select
+        v-model="store.currentTestId"
+        placeholder="请选择测试方案"
+        size="large"
+        style="max-width:320px;flex:1;"
+        @change="(id) => id && store.loadTestById(id)"
+      >
+        <el-option
+          v-for="t in store.testTemplates"
+          :key="t.id"
+          :label="t.name"
+          :value="t.id"
+        />
+      </el-select>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
       <el-button @click="() => router.push({ path: '/config', query: { mode: 'update' } })">更改选定测试</el-button>

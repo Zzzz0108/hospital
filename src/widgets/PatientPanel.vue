@@ -98,9 +98,10 @@ onMounted(() => {
 .btn-compact :deep(.el-button__text){ line-height: 30px; }
 .btn-compact{ height:32px; padding: 0 12px; }
 
-/* 表格选中蓝底，未选中为灰底 */
+/* 表格选中行颜色加深，未选中为灰底 */
 :deep(.el-table__body tr.current-row>td){
-  background-color: #cde5ff !important;
+  background-color: #409eff !important;
+  color: #fff !important;
 }
 :deep(.el-table__body tr>td){
   background-color: #f2f2f2;
